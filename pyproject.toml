@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "leakagelens"
+version = "0.1.0"
+description = "AI-Powered Machine Learning Pipeline Auditor"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.0",
+    "networkx>=3.0",
+    "typer>=0.9.0",
+    "rich>=13.0",
+    "pyyaml>=6.0",
+    "nbformat>=5.0",
+    "openai>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]
+
+[project.scripts]
+leakagelens = "leakagelens.main:app"
