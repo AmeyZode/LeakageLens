@@ -1,20 +1,25 @@
 import React, { useState } from 'react';
+import { ChevronRight, FileCode2, LineChart, Sparkles } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 
-const SEVERITY_CLASS = {
-  critical: 'severity-critical',
-  high: 'severity-high',
-  major: 'severity-major',
-  minor: 'severity-minor',
+const SEVERITY_MAP = {
+  critical: { label: 'CRITICAL', className: 'severity-critical' },
+  high: { label: 'HIGH', className: 'severity-high' },
+  major: { label: 'MEDIUM', className: 'severity-medium' },
+  medium: { label: 'MEDIUM', className: 'severity-medium' },
+  minor: { label: 'LOW', className: 'severity-low' },
+  low: { label: 'LOW', className: 'severity-low' },
 };
 
 function normalizeSeverity(severity) {
-  const key = (severity || '').toLowerCase();
-  if (key === 'critical') return { label: 'CRITICAL', className: SEVERITY_CLASS.critical };
-  if (key === 'high' || key === 'major') return { label: 'HIGH', className: SEVERITY_CLASS.high };
-  return { label: 'MINOR', className: SEVERITY_CLASS.minor };
+  return SEVERITY_MAP[(severity || '').toLowerCase()] || SEVERITY_MAP.low;
 }
 
-function IssueAccordionItem({ issue, recommendation, defaultOpen, index }) {
+function getFileName(filePath) {
+  return filePath?.split(/[/\\]/).pop() || filePath || 'unknown';
+}
+
+function IssueAccordionItem({ issue, recommendation, defaultOpen, compact }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const { label, className } = normalizeSeverity(issue.severity);
 
@@ -24,10 +29,14 @@ function IssueAccordionItem({ issue, recommendation, defaultOpen, index }) {
     recommendation?.explanation ||
     'No recommendation available.';
 
-  const fileName = issue.file_path?.split(/[/\\]/).pop() || issue.file_path;
+  const fileName = getFileName(issue.file_path);
 
   return (
-    <div className={`issue-accordion-item${isOpen ? ' open' : ''}`}>
+    <motion.article
+      className={`issue-accordion-item${isOpen ? ' open' : ''}${compact ? ' compact' : ''}`}
+      layout
+      transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+    >
       <button
         type="button"
         className="issue-accordion-trigger"
@@ -38,76 +47,71 @@ function IssueAccordionItem({ issue, recommendation, defaultOpen, index }) {
         <span className="issue-accordion-summary">
           <span className="issue-accordion-name">{issue.rule_name}</span>
           <span className="issue-accordion-meta">
-            <span>{fileName}</span>
-            <span className="issue-accordion-meta-divider">•</span>
-            <span>line {issue.line_number}</span>
+            <span>
+              <FileCode2 size={13} aria-hidden="true" />
+              {fileName}
+            </span>
+            <span>
+              <LineChart size={13} aria-hidden="true" />
+              Line {issue.line_number || '-'}
+            </span>
           </span>
         </span>
-        <span className="issue-accordion-chevron" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </span>
+        <ChevronRight className="issue-accordion-chevron" size={18} aria-hidden="true" />
       </button>
 
-      {isOpen && (
-        <div className="issue-accordion-panel">
-          <dl className="issue-detail-grid">
-            <div className="issue-detail-row">
-              <dt>Severity</dt>
-              <dd>
-                <span className={`issue-severity-badge ${className}`}>{label}</span>
-              </dd>
-            </div>
-            <div className="issue-detail-row">
-              <dt>Rule</dt>
-              <dd>{issue.rule_name}</dd>
-            </div>
-            <div className="issue-detail-row">
-              <dt>File</dt>
-              <dd>
-                <code>{fileName}</code>
-              </dd>
-            </div>
-            <div className="issue-detail-row">
-              <dt>Line</dt>
-              <dd>
-                <code>{issue.line_number}</code>
-              </dd>
-            </div>
-            <div className="issue-detail-row issue-detail-row--full">
-              <dt>Description</dt>
-              <dd>{issue.description}</dd>
-            </div>
-            {issue.context_line && (
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            className="issue-accordion-panel"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+          >
+            <dl className="issue-detail-grid">
               <div className="issue-detail-row issue-detail-row--full">
-                <dt>Code Context</dt>
-                <dd>
-                  <pre className="issue-code-context">{issue.context_line}</pre>
-                </dd>
+                <dt>Description</dt>
+                <dd>{issue.description || 'No description provided.'}</dd>
               </div>
-            )}
-            <div className="issue-detail-row issue-detail-row--full">
-              <dt>Recommendation</dt>
-              <dd className="issue-recommendation">{fixText}</dd>
-            </div>
-            {recommendation?.code_snippet && (
+
+              {issue.context_line && (
+                <div className="issue-detail-row issue-detail-row--full">
+                  <dt>Code Context</dt>
+                  <dd>
+                    <pre className="issue-code-context">{issue.context_line}</pre>
+                  </dd>
+                </div>
+              )}
+
               <div className="issue-detail-row issue-detail-row--full">
-                <dt>Suggested Fix</dt>
-                <dd>
-                  <pre className="issue-code-context">{recommendation.code_snippet}</pre>
-                </dd>
+                <dt>
+                  <Sparkles size={13} aria-hidden="true" />
+                  Recommendation
+                </dt>
+                <dd className="issue-recommendation">{fixText}</dd>
               </div>
-            )}
-          </dl>
-        </div>
-      )}
-    </div>
+
+              {recommendation?.code_snippet && (
+                <div className="issue-detail-row issue-detail-row--full">
+                  <dt>Suggested Fix</dt>
+                  <dd>
+                    <pre className="issue-code-context">{recommendation.code_snippet}</pre>
+                  </dd>
+                </div>
+              )}
+            </dl>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.article>
   );
 }
 
-function IssueAccordion({ issues = [], recommendations = {} }) {
-  if (!issues.length) {
+function IssueAccordion({ issues = [], recommendations = {}, compact = false, maxItems }) {
+  const visibleIssues = typeof maxItems === 'number' ? issues.slice(0, maxItems) : issues;
+
+  if (!visibleIssues.length) {
     return (
       <div className="issue-accordion-empty">
         <p>No issues detected. Run a scan to analyze your ML project.</p>
@@ -116,14 +120,14 @@ function IssueAccordion({ issues = [], recommendations = {} }) {
   }
 
   return (
-    <div className="issue-accordion">
-      {issues.map((issue, index) => (
+    <div className={`issue-accordion${compact ? ' issue-accordion--compact' : ''}`}>
+      {visibleIssues.map((issue, index) => (
         <IssueAccordionItem
-          key={`${issue.rule_id}-${issue.file_path}-${issue.line_number}-${index}`}
+          key={`${issue.rule_id || issue.rule_name}-${issue.file_path}-${issue.line_number}-${index}`}
           issue={issue}
           recommendation={recommendations[issue.rule_id] || recommendations[`${issue.rule_id}-${index}`]}
-          defaultOpen={index === 0}
-          index={index}
+          defaultOpen={!compact && index === 0}
+          compact={compact}
         />
       ))}
     </div>

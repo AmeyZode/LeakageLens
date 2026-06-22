@@ -1,102 +1,135 @@
 import React from 'react';
+import {
+  Bot,
+  ChevronDown,
+  Clock3,
+  FileBarChart2,
+  Gauge,
+  Home,
+  LogIn,
+  LogOut,
+  ScanSearch,
+  Search,
+  Settings,
+  ShieldCheck,
+  SlidersHorizontal,
+} from 'lucide-react';
 
 const NAV_ITEMS = [
-  { path: '/', label: 'Home', icon: 'home' },
-  { path: '/dashboard', label: 'Dashboard', icon: 'dashboard', protected: true },
-  { path: '/profile', label: 'Profile', icon: 'profile', protected: true },
+  { path: '/dashboard', label: 'Dashboard', icon: Home, protected: true, targetId: 'dashboard-top' },
+  { path: '/scanner', label: 'Scanner', icon: ScanSearch, protected: true, targetId: 'upload-project' },
+  { path: '/reports', label: 'Reports', icon: FileBarChart2, protected: true, targetId: 'analytics' },
+  { path: '/history', label: 'History', icon: Clock3, protected: true, targetId: 'recent-issues' },
+  { path: '/rules', label: 'Rules', icon: SlidersHorizontal, protected: true, targetId: 'recent-issues' },
+  { path: '/ai-recommendations', label: 'AI Recommendations', icon: Bot, protected: true, targetId: 'ai-recommendation' },
+  { path: '/settings', label: 'Settings', icon: Settings, protected: true },
 ];
 
-function NavIcon({ name }) {
-  const icons = {
-    home: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5z" />
-      </svg>
-    ),
-    dashboard: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <rect x="3" y="3" width="7" height="9" rx="1" />
-        <rect x="14" y="3" width="7" height="5" rx="1" />
-        <rect x="14" y="12" width="7" height="9" rx="1" />
-        <rect x="3" y="16" width="7" height="5" rx="1" />
-      </svg>
-    ),
-    profile: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="8" r="4" />
-        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
-      </svg>
-    ),
-  };
-
-  return <span className="sidebar-nav-icon">{icons[name]}</span>;
-}
+const PIPELINE_STEPS = [
+  { label: 'Upload', detail: 'Import your project' },
+  { label: 'Scanner', detail: 'File scanning and parsing' },
+  { label: 'AST Parser', detail: 'Generate AST' },
+  { label: 'Context Builder', detail: 'Extract context and flow' },
+  { label: 'Rule Engine', detail: 'Apply detection rules' },
+  { label: 'Report Generator', detail: 'Generate insights' },
+];
 
 function Sidebar({ currentPath, userToken, onNavigate, onLogout }) {
-  const isActive = (path) => {
-    if (path === '/') return currentPath === '/' || currentPath === '/home';
-    return currentPath === path;
+  const isActive = (item) => {
+    if (item.path === '/settings') return currentPath === '/settings' || currentPath === '/profile';
+    return currentPath === item.path;
+  };
+
+  const handleNavClick = (item) => {
+    if (item.protected && !userToken) {
+      onNavigate('/login');
+      return;
+    }
+
+    onNavigate(item.path);
+
+    if (item.targetId) {
+      window.setTimeout(() => {
+        document.getElementById(item.targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 80);
+    }
   };
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-brand">
-        <div className="sidebar-logo">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.5-3.5" />
-            <path d="M8 11h6M11 8v6" strokeLinecap="round" />
-          </svg>
-        </div>
-        <div>
-          <p className="sidebar-title">LeakageLens</p>
-          <p className="sidebar-subtitle">ML Pipeline Auditor</p>
-        </div>
-      </div>
+      <button type="button" className="sidebar-brand" onClick={() => onNavigate('/')}>
+        <span className="sidebar-logo" aria-hidden="true">
+          <Search size={22} />
+          <ShieldCheck size={18} />
+        </span>
+        <span className="sidebar-brand-copy">
+          <span className="sidebar-title">LeakageLens</span>
+          <span className="sidebar-subtitle">ML Pipeline Auditor</span>
+        </span>
+      </button>
 
       <nav className="sidebar-nav" aria-label="Main navigation">
-        {NAV_ITEMS.map(({ path, label, icon, protected: isProtected }) => {
-          if (isProtected && !userToken) return null;
-
+        {NAV_ITEMS.map((item) => {
+          const Icon = item.icon;
           return (
             <button
-              key={path}
+              key={item.label}
               type="button"
-              className={`sidebar-nav-item${isActive(path) ? ' active' : ''}`}
-              onClick={() => onNavigate(path)}
-              aria-current={isActive(path) ? 'page' : undefined}
+              className={`sidebar-nav-item${isActive(item) ? ' active' : ''}`}
+              onClick={() => handleNavClick(item)}
+              aria-current={isActive(item) ? 'page' : undefined}
+              title={item.label}
             >
-              <NavIcon name={icon} />
-              {label}
+              <Icon className="sidebar-nav-icon" size={18} aria-hidden="true" />
+              <span className="sidebar-nav-label">{item.label}</span>
             </button>
           );
         })}
       </nav>
 
-      <div className="sidebar-pipeline">
+      <div className="sidebar-pipeline" aria-label="Analysis pipeline">
         <p className="sidebar-pipeline-label">Analysis Pipeline</p>
         <ol className="sidebar-pipeline-steps">
-          <li>Upload</li>
-          <li>Scanner</li>
-          <li>AST Parser</li>
-          <li>Context</li>
-          <li>Rules</li>
-          <li>Report</li>
+          {PIPELINE_STEPS.map((step, index) => (
+            <li key={step.label}>
+              <span className="pipeline-step-dot">
+                <Gauge size={12} aria-hidden="true" />
+              </span>
+              <span>
+                <span className="pipeline-step-title">{step.label}</span>
+                <span className="pipeline-step-detail">{step.detail}</span>
+              </span>
+              {index < PIPELINE_STEPS.length - 1 && <span className="pipeline-step-line" aria-hidden="true" />}
+            </li>
+          ))}
         </ol>
       </div>
 
       <div className="sidebar-footer">
         {userToken ? (
-          <button type="button" className="sidebar-auth-btn logout" onClick={onLogout}>
-            Sign out
-          </button>
+          <div className="sidebar-user-card">
+            <span className="sidebar-avatar" aria-hidden="true">
+              A
+            </span>
+            <span className="sidebar-user-copy">
+              <span className="sidebar-user-name">Aditya Pulpati</span>
+              <span className="sidebar-user-email">aditya@gmail.com</span>
+            </span>
+            <span className="sidebar-plan-badge">Pro</span>
+            <button type="button" className="sidebar-user-action" onClick={onLogout} title="Sign out">
+              <LogOut size={15} aria-hidden="true" />
+            </button>
+          </div>
         ) : (
-          <button
-            type="button"
-            className="sidebar-auth-btn login"
-            onClick={() => onNavigate('/login')}
-          >
-            Sign in
+          <button type="button" className="sidebar-signin-card" onClick={() => onNavigate('/login')}>
+            <span className="sidebar-avatar" aria-hidden="true">
+              <LogIn size={17} />
+            </span>
+            <span className="sidebar-user-copy">
+              <span className="sidebar-user-name">Guest Analyst</span>
+              <span className="sidebar-user-email">Sign in to scan</span>
+            </span>
+            <ChevronDown size={15} aria-hidden="true" />
           </button>
         )}
       </div>

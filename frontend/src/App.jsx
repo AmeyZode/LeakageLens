@@ -11,11 +11,26 @@ const ROUTES = {
   '/': Home,
   '/home': Home,
   '/dashboard': Dashboard,
+  '/scanner': Dashboard,
+  '/reports': Dashboard,
+  '/history': Dashboard,
+  '/rules': Dashboard,
+  '/ai-recommendations': Dashboard,
   '/profile': Profile,
+  '/settings': Profile,
   '/login': Login,
 };
 
-const PROTECTED_ROUTES = new Set(['/dashboard', '/profile']);
+const PROTECTED_ROUTES = new Set([
+  '/dashboard',
+  '/scanner',
+  '/reports',
+  '/history',
+  '/rules',
+  '/ai-recommendations',
+  '/profile',
+  '/settings',
+]);
 
 function normalizePath(hash) {
   const path = hash.replace(/^#/, '') || '/';

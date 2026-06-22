@@ -1,111 +1,119 @@
-import React, { useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
+import {
+  Activity,
+  AlertTriangle,
+  ArrowDown,
+  ArrowRight,
+  Bot,
+  CheckCircle2,
+  Code2,
+  Database,
+  FileCheck2,
+  FileText,
+  FolderOpen,
+  Gauge,
+  Network,
+  ScanSearch,
+  ShieldCheck,
+  Sparkles,
+  UploadCloud,
+} from 'lucide-react';
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import MetricCard from '../components/MetricCard.jsx';
 import IssueAccordion from '../components/IssueAccordion.jsx';
 
-/**
- * Expected shape from POST /api/scan (FastAPI).
- * Matches leakagelens Issue model + report metadata.
- */
 export const PLACEHOLDER_SCAN_RESPONSE = {
-  score: 42,
-  files_scanned: 8,
+  score: 92,
+  files_scanned: 48,
   counts: {
-    critical: 2,
-    major: 4,
-    minor: 3,
-    total: 9,
-    leakage: 3,
-    evaluation: 2,
-    reproducibility: 3,
-    quality: 1,
+    critical: 0,
+    major: 3,
+    minor: 9,
+    total: 12,
+    leakage: 5,
+    evaluation: 3,
+    reproducibility: 2,
+    quality: 2,
   },
   issues: [
     {
       rule_id: 'PREPROCESSING_LEAKAGE',
-      rule_name: 'Data Leakage',
-      severity: 'critical',
-      file_path: 'sample_projects/training.py',
+      rule_name: 'Data Leakage Detected',
+      severity: 'high',
+      file_path: 'src/preprocessing.py',
       line_number: 45,
       context_line: 'X_scaled = scaler.fit_transform(X)',
-      description: 'Preprocessing performed before train-test split.',
-      suggested_fix: 'Split data first, then apply preprocessing.',
+      description: 'Preprocessing is fit on the full feature matrix before the train/test split.',
+      suggested_fix: 'Split data first, then fit the scaler only on the training data.',
     },
     {
       rule_id: 'RANDOM_STATE',
-      rule_name: 'Missing random_state',
-      severity: 'major',
-      file_path: 'sample_projects/training.py',
-      line_number: 16,
-      context_line: 'train_test_split(X_scaled, y)',
-      description:
-        "Detected 'train_test_split' missing a 'random_state' argument. This leads to non-reproducible splits.",
-      suggested_fix: 'Pass a fixed integer to random_state (e.g. random_state=42).',
+      rule_name: 'Missing Random Seed',
+      severity: 'medium',
+      file_path: 'src/model.py',
+      line_number: 22,
+      context_line: 'train_test_split(X, y, test_size=0.2)',
+      description: 'The split does not define a random_state, making audit results hard to reproduce.',
+      suggested_fix: 'Pass a fixed integer to random_state, for example random_state=42.',
     },
     {
-      rule_id: 'TEST_ON_TRAIN',
-      rule_name: 'Testing on Training Data',
-      severity: 'major',
-      file_path: 'sample_projects/training.py',
-      line_number: 23,
-      context_line: 'train_acc = model.score(X_train, y_train)',
-      description:
-        'Model is evaluated on training features without any held-out test evaluation.',
-      suggested_fix: 'Evaluate the model on a separate test or validation set.',
+      rule_id: 'SPLIT_STRATIFY',
+      rule_name: 'Train/Test Split Issue',
+      severity: 'low',
+      file_path: 'src/data_loader.py',
+      line_number: 78,
+      context_line: 'train_test_split(X, y, shuffle=True)',
+      description: 'The classifier split does not stratify the target labels.',
+      suggested_fix: 'Use stratify=y for classification datasets with imbalanced labels.',
     },
     {
       rule_id: 'GLOBAL_SEED',
       rule_name: 'Missing Global Seed',
-      severity: 'major',
-      file_path: 'sample_projects/training.py',
-      line_number: 1,
+      severity: 'medium',
+      file_path: 'src/train.py',
+      line_number: 12,
       context_line: 'import numpy as np',
-      description: 'No global random seed initialization detected in this file.',
-      suggested_fix: 'Add random.seed(42) and np.random.seed(42) at the entry point.',
-    },
-    {
-      rule_id: 'HARDCODED_PATH',
-      rule_name: 'Hardcoded Absolute Path',
-      severity: 'major',
-      file_path: 'sample_projects/leaky_notebook.ipynb',
-      line_number: 5,
-      context_line: 'df = pd.read_csv("C:\\\\Users\\\\admin\\\\dataset.csv")',
-      description: 'Hardcoded absolute path prevents reproducibility across environments.',
-      suggested_fix: 'Use relative paths or environment variables for dataset locations.',
-    },
-    {
-      rule_id: 'TEMPORAL_LEAKAGE',
-      rule_name: 'Temporal Leakage',
-      severity: 'critical',
-      file_path: 'sample_projects/features.py',
-      line_number: 31,
-      context_line: 'X_train, X_test = train_test_split(X, shuffle=True)',
-      description: 'Random split applied on time-series data without temporal ordering.',
-      suggested_fix: 'Use chronological splits for temporal datasets.',
-    },
-    {
-      rule_id: 'UNUSED_IMPORT',
-      rule_name: 'Unused Import',
-      severity: 'minor',
-      file_path: 'sample_projects/training.py',
-      line_number: 1,
-      context_line: 'import numpy as np',
-      description: "Import 'np' is declared but never used in the file.",
-      suggested_fix: "Remove the unused import or use the imported module.",
+      description: 'No global seed initialization was detected before training.',
+      suggested_fix: 'Initialize Python, NumPy, and framework seeds at the entry point.',
     },
   ],
   recommendations: {
     PREPROCESSING_LEAKAGE: {
       explanation:
-        'Preprocessing was fit on the full dataset before splitting, leaking test-set statistics into training.',
-      risk: 'Over-optimistic validation metrics and poor real-world generalization.',
-      suggested_fix: 'Split data first, then apply preprocessing.',
-      code_snippet: `# Split first
-X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
-scaler = StandardScaler()
-X_train = scaler.fit_transform(X_train)
+        'Fit the scaler only on training data and transform the test data separately.',
+      risk: 'The current flow leaks test-set statistics into training and inflates evaluation metrics.',
+      suggested_fix: 'Split data first, then fit preprocessing only on X_train.',
+      code_snippet: `X_train, X_test = train_test_split(X)
+scaler.fit(X_train)
+X_train = scaler.transform(X_train)
 X_test = scaler.transform(X_test)`,
     },
   },
+};
+
+const CATEGORY_COLORS = ['#ff5d5d', '#7c5cff', '#ffae3d', '#22c785'];
+
+const HERO_STEPS = [
+  { label: 'Code Scanner', detail: 'Scan project files', icon: ScanSearch, tone: 'blue' },
+  { label: 'AST Analysis', detail: 'Parse code structure', icon: Network, tone: 'purple' },
+  { label: 'Rule Engine', detail: 'Detect issues', icon: Gauge, tone: 'orange' },
+  { label: 'AI Recommendation', detail: 'Suggest fixes', icon: Bot, tone: 'green' },
+  { label: 'Smart Report', detail: 'Generate insights', icon: FileCheck2, tone: 'pink' },
+];
+
+const pageVariants = {
+  hidden: { opacity: 0, y: 16 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.45, ease: 'easeOut', staggerChildren: 0.08 },
+  },
+};
+
+const sectionVariants = {
+  hidden: { opacity: 0, y: 14 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } },
 };
 
 export function normalizeScanResponse(data) {
@@ -132,30 +140,6 @@ export function normalizeScanResponse(data) {
   };
 }
 
-function CategoryBar({ label, count, maxCount, colorClass }) {
-  const width = maxCount > 0 ? Math.round((count / maxCount) * 100) : 0;
-
-  return (
-    <div className="category-bar">
-      <div className="category-bar-label">
-        <span>{label}</span>
-        <span className="category-bar-count">{count}</span>
-      </div>
-      <div className="category-bar-track">
-        <div
-          className={`category-bar-fill ${colorClass}`}
-          style={{ width: `${width}%` }}
-          role="meter"
-          aria-valuenow={count}
-          aria-valuemin={0}
-          aria-valuemax={maxCount}
-          aria-label={`${label}: ${count} issues`}
-        />
-      </div>
-    </div>
-  );
-}
-
 function Dashboard() {
   const [scanPath, setScanPath] = useState('');
   const [scanResult, setScanResult] = useState(() =>
@@ -163,10 +147,14 @@ function Dashboard() {
   );
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState(null);
+  const uploadRef = useRef(null);
+  const inputRef = useRef(null);
+  const analyticsRef = useRef(null);
 
   const handleScan = async () => {
     if (!scanPath.trim()) {
       setScanError('Enter a project path to scan.');
+      inputRef.current?.focus();
       return;
     }
 
@@ -201,143 +189,328 @@ function Dashboard() {
     }
   };
 
+  const focusScanner = () => {
+    uploadRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    window.setTimeout(() => inputRef.current?.focus(), 320);
+  };
+
+  const viewReports = () => {
+    analyticsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const { score, filesScanned, counts, issues, recommendations } = scanResult;
 
-  const categoryData = [
-    { label: 'Leakage Issues', count: counts.leakage, colorClass: 'bar-leakage' },
-    { label: 'Evaluation Issues', count: counts.evaluation, colorClass: 'bar-evaluation' },
-    {
-      label: 'Reproducibility Issues',
-      count: counts.reproducibility,
-      colorClass: 'bar-reproducibility',
-    },
-    { label: 'Code Quality Issues', count: counts.quality, colorClass: 'bar-quality' },
-  ];
+  const categoryData = useMemo(
+    () => [
+      { name: 'Data Leakage', value: counts.leakage },
+      { name: 'Evaluation Errors', value: counts.evaluation },
+      { name: 'Reproducibility', value: counts.reproducibility },
+      { name: 'Code Quality', value: counts.quality },
+    ],
+    [counts],
+  );
 
-  const maxCategoryCount = Math.max(...categoryData.map((c) => c.count), 1);
-
-  const scoreLabel =
-    score >= 80 ? 'Healthy' : score >= 50 ? 'Needs Attention' : score >= 25 ? 'At Risk' : 'Critical';
+  const totalCategoryIssues = categoryData.reduce((sum, item) => sum + item.value, 0);
+  const riskLevel = counts.critical > 0 ? 'HIGH' : counts.major > 4 ? 'MEDIUM' : 'LOW';
+  const healthLabel = score >= 85 ? 'Excellent' : score >= 70 ? 'Stable' : 'Needs review';
+  const primaryRecommendation =
+    recommendations.PREPROCESSING_LEAKAGE || Object.values(recommendations)[0] || {};
 
   return (
-    <div className="dashboard-view">
-      <section className="dashboard-scan-bar">
-        <div className="dashboard-scan-input-group">
-          <label htmlFor="scan-path" className="dashboard-scan-label">
-            Project path
-          </label>
-          <input
-            id="scan-path"
-            type="text"
-            className="dashboard-scan-input"
-            placeholder="e.g. ./sample_projects or /path/to/ml-project"
-            value={scanPath}
-            onChange={(e) => setScanPath(e.target.value)}
-            disabled={isScanning}
-          />
+    <motion.div
+      id="dashboard-top"
+      className="dashboard-view"
+      variants={pageVariants}
+      initial="hidden"
+      animate="show"
+    >
+      <motion.section className="dashboard-hero security-surface" variants={sectionVariants}>
+        <div className="hero-copy">
+          <span className="hero-kicker">
+            <Sparkles size={14} aria-hidden="true" />
+            AI-powered ML auditor
+          </span>
+          <h2>
+            Audit Your ML Pipelines Before{' '}
+            <span className="gradient-text">Production</span>
+          </h2>
+          <p>
+            Detect data leakage, reproducibility issues, evaluation mistakes and ML anti-patterns
+            using AI-powered static analysis.
+          </p>
+
+          <div className="hero-actions">
+            <button type="button" className="btn btn-primary" onClick={focusScanner}>
+              <UploadCloud size={18} aria-hidden="true" />
+              Scan Project
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={viewReports}>
+              <FileText size={18} aria-hidden="true" />
+              View Reports
+            </button>
+          </div>
+
+          <div className="hero-trust-row" aria-label="Audit summary">
+            <span className="avatar-stack" aria-hidden="true">
+              <i>A</i>
+              <i>M</i>
+              <i>K</i>
+              <i>P</i>
+            </span>
+            <span>Trusted by 1,200+ ML engineers</span>
+          </div>
         </div>
-        <button
-          type="button"
-          className="dashboard-scan-btn"
-          onClick={handleScan}
-          disabled={isScanning}
-        >
+
+        <div className="hero-visual" aria-label="Pipeline visualization">
+          <div className="pipeline-visual-stack">
+            {HERO_STEPS.map((step, index) => {
+              const Icon = step.icon;
+              return (
+                <motion.div
+                  key={step.label}
+                  className={`pipeline-node pipeline-node--${step.tone}`}
+                  initial={{ opacity: 0, x: 16 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 + index * 0.08 }}
+                >
+                  <span className="pipeline-node-icon">
+                    <Icon size={18} aria-hidden="true" />
+                  </span>
+                  <span>
+                    <strong>{step.label}</strong>
+                    <small>{step.detail}</small>
+                  </span>
+                  {index < HERO_STEPS.length - 1 && (
+                    <ArrowDown className="pipeline-node-arrow" size={16} aria-hidden="true" />
+                  )}
+                </motion.div>
+              );
+            })}
+          </div>
+
+          <div className="shield-illustration" aria-hidden="true">
+            <span className="shield-ring ring-one" />
+            <span className="shield-ring ring-two" />
+            <ShieldCheck size={118} strokeWidth={1.4} />
+            <span className="shield-base" />
+          </div>
+        </div>
+      </motion.section>
+
+      {scanError && (
+        <motion.div className="dashboard-alert dashboard-alert--error" role="alert" variants={sectionVariants}>
+          <AlertTriangle size={16} aria-hidden="true" />
+          {scanError}
+        </motion.div>
+      )}
+
+      <motion.section className="metric-grid" aria-label="Project health metrics" variants={sectionVariants}>
+        <MetricCard
+          title="Pipeline Health"
+          value={`${score}%`}
+          description={healthLabel}
+          variant="success"
+          trend="+12%"
+          progress={score}
+          icon={<ShieldCheck size={24} />}
+        />
+        <MetricCard
+          title="Issues Detected"
+          value={counts.total}
+          description="Across 8 categories"
+          variant="danger"
+          trend="+3"
+          trendDirection="down"
+          icon={<AlertTriangle size={24} />}
+        />
+        <MetricCard
+          title="Files Scanned"
+          value={filesScanned}
+          description="Python, Jupyter, YAML"
+          variant="blue"
+          trend="+8"
+          icon={<FolderOpen size={24} />}
+        />
+        <MetricCard
+          title="Risk Level"
+          value={riskLevel}
+          description={counts.critical ? 'Critical issues found' : 'No critical risks'}
+          variant={riskLevel === 'LOW' ? 'success' : 'warning'}
+          trend={riskLevel === 'LOW' ? 'Stable' : 'Review'}
+          icon={<Gauge size={24} />}
+        />
+      </motion.section>
+
+      <motion.section
+        id="analytics"
+        ref={analyticsRef}
+        className="analytics-grid"
+        variants={sectionVariants}
+      >
+        <article className="analytics-card category-card">
+          <div className="panel-heading">
+            <span>
+              <Activity size={15} aria-hidden="true" />
+              Issues By Category
+            </span>
+          </div>
+
+          <div className="donut-layout">
+            <div className="donut-chart">
+              <ResponsiveContainer width="100%" height={215} minWidth={160} minHeight={215}>
+                <PieChart>
+                  <Pie
+                    data={categoryData}
+                    dataKey="value"
+                    innerRadius="58%"
+                    outerRadius="82%"
+                    paddingAngle={2}
+                    startAngle={90}
+                    endAngle={-270}
+                    isAnimationActive
+                  >
+                    {categoryData.map((entry, index) => (
+                      <Cell key={entry.name} fill={CATEGORY_COLORS[index]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    cursor={false}
+                    contentStyle={{
+                      background: '#090d1c',
+                      border: '1px solid rgba(124, 92, 255, 0.35)',
+                      borderRadius: 8,
+                      color: '#f8fbff',
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="donut-center">
+                <strong>{totalCategoryIssues || counts.total}</strong>
+                <span>Total</span>
+              </div>
+            </div>
+
+            <div className="category-legend">
+              {categoryData.map((item, index) => (
+                <div key={item.name} className="category-legend-row">
+                  <span>
+                    <i style={{ backgroundColor: CATEGORY_COLORS[index] }} />
+                    {item.name}
+                  </span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <button type="button" className="panel-link-btn" onClick={viewReports}>
+            View all issues
+            <ArrowRight size={15} aria-hidden="true" />
+          </button>
+        </article>
+
+        <article id="recent-issues" className="analytics-card recent-card">
+          <div className="panel-heading panel-heading--split">
+            <span>
+              <Sparkles size={15} aria-hidden="true" />
+              Recent Issues
+            </span>
+            <button type="button" onClick={viewReports}>
+              View all
+              <ArrowRight size={14} aria-hidden="true" />
+            </button>
+          </div>
+          <IssueAccordion issues={issues} recommendations={recommendations} compact maxItems={3} />
+        </article>
+
+        <article id="ai-recommendation" className="analytics-card recommendation-card">
+          <div className="panel-heading">
+            <span>
+              <Sparkles size={15} aria-hidden="true" />
+              AI Recommendation
+            </span>
+          </div>
+
+          <div className="recommendation-panel">
+            <span className="recommendation-label">Fix: Data Leakage</span>
+            <p>{primaryRecommendation.explanation || 'Split data before fitting preprocessing transforms.'}</p>
+
+            <div className="code-comparison">
+              <div>
+                <span className="code-label incorrect">Incorrect</span>
+                <pre>{`X_scaled = scaler.fit_transform(X)`}</pre>
+              </div>
+              <div>
+                <span className="code-label correct">Correct</span>
+                <pre>{`X_train, X_test = train_test_split(X)
+scaler.fit(X_train)
+X_train = scaler.transform(X_train)
+X_test = scaler.transform(X_test)`}</pre>
+              </div>
+            </div>
+          </div>
+        </article>
+      </motion.section>
+
+      <motion.section
+        id="upload-project"
+        ref={uploadRef}
+        className="upload-card security-surface"
+        variants={sectionVariants}
+      >
+        <div className="upload-icon" aria-hidden="true">
+          <UploadCloud size={28} />
+        </div>
+
+        <div className="upload-copy">
+          <h2>Drop your ML project here</h2>
+          <p>Supports Python, Jupyter Notebook, CSV, JSON, YAML</p>
+          <div className="scan-path-control">
+            <label htmlFor="scan-path">Project path</label>
+            <input
+              id="scan-path"
+              ref={inputRef}
+              type="text"
+              placeholder="e.g. ./sample_projects or /path/to/ml-project"
+              value={scanPath}
+              onChange={(event) => setScanPath(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') handleScan();
+              }}
+              disabled={isScanning}
+            />
+          </div>
+        </div>
+
+        <button type="button" className="btn btn-primary upload-btn" onClick={handleScan} disabled={isScanning}>
           {isScanning ? (
             <>
               <span className="scan-spinner" aria-hidden="true" />
-              Scanning…
+              Scanning
             </>
           ) : (
-            'Scan Project'
+            <>
+              <Code2 size={18} aria-hidden="true" />
+              Upload Project
+            </>
           )}
         </button>
-      </section>
+      </motion.section>
 
-      {scanError && (
-        <div className="dashboard-alert dashboard-alert--error" role="alert">
-          {scanError}
-        </div>
-      )}
-
-      <p className="dashboard-placeholder-note">
-        Displaying placeholder data for UI testing. Connect{' '}
-        <code>POST /api/scan</code> to load live results.
-      </p>
-
-      <section className="dashboard-section">
-        <h2 className="dashboard-section-title">Project Health Overview</h2>
-        <div className="metric-grid">
-          <MetricCard
-            title="Health Score"
-            value={`${score}/100`}
-            subtitle={scoreLabel}
-            variant="score"
-            icon={
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-              </svg>
-            }
-          />
-          <MetricCard
-            title="Files Scanned"
-            value={filesScanned}
-            subtitle="Python & notebooks"
-            icon={
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <path d="M14 2v6h6M10 13h4M10 17h4" />
-              </svg>
-            }
-          />
-          <MetricCard
-            title="Issues Found"
-            value={counts.total}
-            subtitle={`${counts.major} major · ${counts.minor} minor`}
-            icon={
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 8v4M12 16h.01" strokeLinecap="round" />
-              </svg>
-            }
-          />
-          <MetricCard
-            title="Critical Issues"
-            value={counts.critical}
-            subtitle="Requires immediate fix"
-            variant="critical"
-            icon={
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                <path d="M12 9v4M12 17h.01" strokeLinecap="round" />
-              </svg>
-            }
-          />
-        </div>
-      </section>
-
-      <section className="dashboard-section">
-        <h2 className="dashboard-section-title">Issue Analytics</h2>
-        <div className="analytics-panel">
-          {categoryData.map((category) => (
-            <CategoryBar
-              key={category.label}
-              label={category.label}
-              count={category.count}
-              maxCount={maxCategoryCount}
-              colorClass={category.colorClass}
-            />
-          ))}
-        </div>
-      </section>
-
-      <section className="dashboard-section">
-        <div className="dashboard-section-header">
-          <h2 className="dashboard-section-title">Detected Problems</h2>
-          <span className="dashboard-issue-count">{issues.length} issues</span>
+      <motion.section className="full-issues-panel security-surface" variants={sectionVariants}>
+        <div className="panel-heading panel-heading--split">
+          <span>
+            <Database size={15} aria-hidden="true" />
+            Audit Findings
+          </span>
+          <span className="issue-count-pill">
+            <CheckCircle2 size={14} aria-hidden="true" />
+            {issues.length} visible
+          </span>
         </div>
         <IssueAccordion issues={issues} recommendations={recommendations} />
-      </section>
-    </div>
+      </motion.section>
+    </motion.div>
   );
 }
 
