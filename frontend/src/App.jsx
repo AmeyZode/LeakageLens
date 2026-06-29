@@ -95,7 +95,7 @@ function App() {
       onNavigate={navigate}
       onLogout={handleLogout}
     >
-      <ViewComponent userToken={userToken} onNavigate={navigate} />
+      <ViewComponent userToken={userToken} onNavigate={navigate} currentPath={currentPath} />
     </Layout>
   );
 }

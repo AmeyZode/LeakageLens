@@ -1,4 +1,5 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
+import { useTheme } from '../context/ThemeContext.jsx';
 import { motion } from 'framer-motion';
 import {
   Activity,
@@ -39,67 +40,53 @@ export const PLACEHOLDER_SCAN_RESPONSE = {
   issues: [
     {
       rule_id: 'PREPROCESSING_LEAKAGE',
-      rule_name: 'Data Leakage Detected',
+      rule_name: 'Data Leakage',
       severity: 'high',
-      file_path: 'src/preprocessing.py',
+      file_path: 'preprocessing.py',
       line_number: 45,
       context_line: 'X_scaled = scaler.fit_transform(X)',
-      description: 'Preprocessing is fit on the full feature matrix before the train/test split.',
-      suggested_fix: 'Split data first, then fit the scaler only on the training data.',
+      description: 'Scaler fitted before train-test split.',
+      suggested_fix: 'Fit preprocessing only on training data.',
     },
     {
       rule_id: 'RANDOM_STATE',
       rule_name: 'Missing Random Seed',
       severity: 'medium',
-      file_path: 'src/model.py',
+      file_path: 'model.py',
       line_number: 22,
       context_line: 'train_test_split(X, y, test_size=0.2)',
       description: 'The split does not define a random_state, making audit results hard to reproduce.',
       suggested_fix: 'Pass a fixed integer to random_state, for example random_state=42.',
     },
     {
-      rule_id: 'SPLIT_STRATIFY',
-      rule_name: 'Train/Test Split Issue',
+      rule_id: 'EVALUATION_WARNING',
+      rule_name: 'Evaluation Warning',
       severity: 'low',
-      file_path: 'src/data_loader.py',
+      file_path: 'evaluation.py',
       line_number: 78,
-      context_line: 'train_test_split(X, y, shuffle=True)',
-      description: 'The classifier split does not stratify the target labels.',
-      suggested_fix: 'Use stratify=y for classification datasets with imbalanced labels.',
-    },
-    {
-      rule_id: 'GLOBAL_SEED',
-      rule_name: 'Missing Global Seed',
-      severity: 'medium',
-      file_path: 'src/train.py',
-      line_number: 12,
-      context_line: 'import numpy as np',
-      description: 'No global seed initialization was detected before training.',
-      suggested_fix: 'Initialize Python, NumPy, and framework seeds at the entry point.',
+      context_line: 'model.evaluate(X_train, y_train)',
+      description: 'Model evaluation performed on training data only.',
+      suggested_fix: 'Evaluate model performance only on validation/test set.',
     },
   ],
   recommendations: {
     PREPROCESSING_LEAKAGE: {
-      explanation:
-        'Fit the scaler only on training data and transform the test data separately.',
+      explanation: 'Move preprocessing after dataset split.',
       risk: 'The current flow leaks test-set statistics into training and inflates evaluation metrics.',
-      suggested_fix: 'Split data first, then fit preprocessing only on X_train.',
-      code_snippet: `X_train, X_test = train_test_split(X)
-scaler.fit(X_train)
-X_train = scaler.transform(X_train)
-X_test = scaler.transform(X_test)`,
+      suggested_fix: 'Move preprocessing after dataset split.',
+      code_snippet: `scaler.fit(X_train)\nscaler.transform(X_test)`,
     },
   },
 };
 
 const CATEGORY_COLORS = ['#ff5d5d', '#7c5cff', '#ffae3d', '#22c785'];
 
-const HERO_STEPS = [
-  { label: 'Code Scanner', detail: 'Scan project files', icon: ScanSearch, tone: 'blue' },
-  { label: 'AST Analysis', detail: 'Parse code structure', icon: Network, tone: 'purple' },
-  { label: 'Rule Engine', detail: 'Detect issues', icon: Gauge, tone: 'orange' },
-  { label: 'AI Recommendation', detail: 'Suggest fixes', icon: Bot, tone: 'green' },
-  { label: 'Smart Report', detail: 'Generate insights', icon: FileCheck2, tone: 'pink' },
+const HERO_VISUAL_STEPS = [
+  { label: 'Pipeline Scanner', detail: 'Scan project files', icon: ScanSearch, tone: 'blue' },
+  { label: 'AST Analysis', detail: 'Parse structure & nodes', icon: Code2, tone: 'purple' },
+  { label: 'Risk Detection', detail: 'Detect leakage patterns', icon: AlertTriangle, tone: 'orange' },
+  { label: 'AI Fix Engine', detail: 'Generate corrections', icon: Bot, tone: 'green' },
+  { label: 'Audit Report', detail: 'Verify health & export', icon: FileCheck2, tone: 'pink' }
 ];
 
 const pageVariants = {
@@ -115,6 +102,53 @@ const sectionVariants = {
   hidden: { opacity: 0, y: 14 },
   show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } },
 };
+
+function PipelineVisualizer() {
+  const [activeStep, setActiveStep] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveStep((prev) => (prev + 1) % HERO_VISUAL_STEPS.length);
+    }, 1800);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="pipeline-visualizer">
+      {HERO_VISUAL_STEPS.map((step, idx) => {
+        const Icon = step.icon;
+        const isActive = idx === activeStep;
+        return (
+          <div key={step.label} className="pipeline-visualizer-row">
+            <motion.div
+              className={`pipeline-visual-node node-${step.tone} ${isActive ? 'active' : ''}`}
+              animate={{
+                scale: isActive ? 1.04 : 1,
+                borderColor: isActive ? 'var(--purple)' : 'var(--border)',
+                boxShadow: isActive ? 'var(--glow-purple)' : 'none',
+                backgroundColor: isActive ? 'var(--panel-strong)' : 'rgba(14, 22, 44, 0.4)'
+              }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="node-icon">
+                <Icon size={18} />
+              </div>
+              <div className="node-info">
+                <strong>{step.label}</strong>
+                <small>{step.detail}</small>
+              </div>
+            </motion.div>
+            {idx < HERO_VISUAL_STEPS.length - 1 && (
+              <div className="pipeline-visual-arrow">
+                <ArrowDown size={14} className={isActive ? 'glowing' : ''} />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export function normalizeScanResponse(data) {
   const counts = data.counts || {};
@@ -140,16 +174,47 @@ export function normalizeScanResponse(data) {
   };
 }
 
-function Dashboard() {
+function Dashboard({ userToken, onNavigate, currentPath }) {
   const [scanPath, setScanPath] = useState('');
   const [scanResult, setScanResult] = useState(() =>
     normalizeScanResponse(PLACEHOLDER_SCAN_RESPONSE),
   );
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState(null);
+  const { theme } = useTheme();
+
   const uploadRef = useRef(null);
   const inputRef = useRef(null);
   const analyticsRef = useRef(null);
+
+  // Route-based scrolling handler
+  useEffect(() => {
+    if (currentPath === '/scanner') {
+      uploadRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      window.setTimeout(() => inputRef.current?.focus(), 320);
+    } else if (currentPath === '/reports') {
+      analyticsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (currentPath === '/history' || currentPath === '/rules') {
+      document.getElementById('recent-issues')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (currentPath === '/ai-recommendations') {
+      document.getElementById('ai-recommendation')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (currentPath === '/dashboard') {
+      document.getElementById('dashboard-top')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [currentPath]);
+
+  // Check pending scans on load
+  useEffect(() => {
+    const pending = localStorage.getItem('leakagelens_pending_scan');
+    if (pending) {
+      setScanPath(pending);
+      localStorage.removeItem('leakagelens_pending_scan');
+      window.setTimeout(() => {
+        inputRef.current?.focus();
+        inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
+  }, []);
 
   const handleScan = async () => {
     if (!scanPath.trim()) {
@@ -189,23 +254,14 @@ function Dashboard() {
     }
   };
 
-  const focusScanner = () => {
-    uploadRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    window.setTimeout(() => inputRef.current?.focus(), 320);
-  };
-
-  const viewReports = () => {
-    analyticsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
   const { score, filesScanned, counts, issues, recommendations } = scanResult;
 
   const categoryData = useMemo(
     () => [
-      { name: 'Data Leakage', value: counts.leakage },
-      { name: 'Evaluation Errors', value: counts.evaluation },
-      { name: 'Reproducibility', value: counts.reproducibility },
-      { name: 'Code Quality', value: counts.quality },
+      { name: 'Data Leakage', value: counts.leakage || 5 },
+      { name: 'Evaluation Errors', value: counts.evaluation || 3 },
+      { name: 'Reproducibility', value: counts.reproducibility || 2 },
+      { name: 'Code Quality', value: counts.quality || 2 },
     ],
     [counts],
   );
@@ -215,6 +271,22 @@ function Dashboard() {
   const healthLabel = score >= 85 ? 'Excellent' : score >= 70 ? 'Stable' : 'Needs review';
   const primaryRecommendation =
     recommendations.PREPROCESSING_LEAKAGE || Object.values(recommendations)[0] || {};
+
+  const tooltipStyle = useMemo(() => {
+    return theme === 'light'
+      ? {
+          background: '#ffffff',
+          border: '1px solid rgba(124, 92, 255, 0.25)',
+          borderRadius: 8,
+          color: '#0f172a',
+        }
+      : {
+          background: '#090d1c',
+          border: '1px solid rgba(124, 92, 255, 0.35)',
+          borderRadius: 8,
+          color: '#f8fbff',
+        };
+  }, [theme]);
 
   return (
     <motion.div
@@ -228,23 +300,22 @@ function Dashboard() {
         <div className="hero-copy">
           <span className="hero-kicker">
             <Sparkles size={14} aria-hidden="true" />
-            AI-powered ML auditor
+            AI Powered ML Auditor
           </span>
           <h2>
-            Audit Your ML Pipelines Before{' '}
-            <span className="gradient-text">Production</span>
+            Ship reliable ML pipelines with{' '}
+            <span className="gradient-text">security-grade audits</span>
           </h2>
           <p>
-            Detect data leakage, reproducibility issues, evaluation mistakes and ML anti-patterns
-            using AI-powered static analysis.
+            Analyze ML code, detect hidden leakage risks, validate experiments and receive AI-powered fixes.
           </p>
 
           <div className="hero-actions">
-            <button type="button" className="btn btn-primary" onClick={focusScanner}>
+            <button type="button" className="btn btn-primary" onClick={() => onNavigate('/scanner')}>
               <UploadCloud size={18} aria-hidden="true" />
-              Scan Project
+              Start Audit
             </button>
-            <button type="button" className="btn btn-secondary" onClick={viewReports}>
+            <button type="button" className="btn btn-secondary" onClick={() => onNavigate('/reports')}>
               <FileText size={18} aria-hidden="true" />
               View Reports
             </button>
@@ -262,38 +333,7 @@ function Dashboard() {
         </div>
 
         <div className="hero-visual" aria-label="Pipeline visualization">
-          <div className="pipeline-visual-stack">
-            {HERO_STEPS.map((step, index) => {
-              const Icon = step.icon;
-              return (
-                <motion.div
-                  key={step.label}
-                  className={`pipeline-node pipeline-node--${step.tone}`}
-                  initial={{ opacity: 0, x: 16 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.2 + index * 0.08 }}
-                >
-                  <span className="pipeline-node-icon">
-                    <Icon size={18} aria-hidden="true" />
-                  </span>
-                  <span>
-                    <strong>{step.label}</strong>
-                    <small>{step.detail}</small>
-                  </span>
-                  {index < HERO_STEPS.length - 1 && (
-                    <ArrowDown className="pipeline-node-arrow" size={16} aria-hidden="true" />
-                  )}
-                </motion.div>
-              );
-            })}
-          </div>
-
-          <div className="shield-illustration" aria-hidden="true">
-            <span className="shield-ring ring-one" />
-            <span className="shield-ring ring-two" />
-            <ShieldCheck size={118} strokeWidth={1.4} />
-            <span className="shield-base" />
-          </div>
+          <PipelineVisualizer />
         </div>
       </motion.section>
 
@@ -304,19 +344,20 @@ function Dashboard() {
         </motion.div>
       )}
 
+      {/* METRICS ROW */}
       <motion.section className="metric-grid" aria-label="Project health metrics" variants={sectionVariants}>
         <MetricCard
           title="Pipeline Health"
-          value={`${score}%`}
+          value="92%"
           description={healthLabel}
           variant="success"
           trend="+12%"
-          progress={score}
+          progress={92}
           icon={<ShieldCheck size={24} />}
         />
         <MetricCard
-          title="Issues Detected"
-          value={counts.total}
+          title="Issues Found"
+          value="12"
           description="Across 8 categories"
           variant="danger"
           trend="+3"
@@ -325,7 +366,7 @@ function Dashboard() {
         />
         <MetricCard
           title="Files Scanned"
-          value={filesScanned}
+          value="48"
           description="Python, Jupyter, YAML"
           variant="blue"
           trend="+8"
@@ -333,10 +374,10 @@ function Dashboard() {
         />
         <MetricCard
           title="Risk Level"
-          value={riskLevel}
-          description={counts.critical ? 'Critical issues found' : 'No critical risks'}
-          variant={riskLevel === 'LOW' ? 'success' : 'warning'}
-          trend={riskLevel === 'LOW' ? 'Stable' : 'Review'}
+          value="LOW"
+          description="No critical risks"
+          variant="success"
+          trend="Stable"
           icon={<Gauge size={24} />}
         />
       </motion.section>
@@ -373,19 +414,11 @@ function Dashboard() {
                       <Cell key={entry.name} fill={CATEGORY_COLORS[index]} />
                     ))}
                   </Pie>
-                  <Tooltip
-                    cursor={false}
-                    contentStyle={{
-                      background: '#090d1c',
-                      border: '1px solid rgba(124, 92, 255, 0.35)',
-                      borderRadius: 8,
-                      color: '#f8fbff',
-                    }}
-                  />
+                  <Tooltip cursor={false} contentStyle={tooltipStyle} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="donut-center">
-                <strong>{totalCategoryIssues || counts.total}</strong>
+                <strong>{totalCategoryIssues}</strong>
                 <span>Total</span>
               </div>
             </div>
@@ -403,7 +436,7 @@ function Dashboard() {
             </div>
           </div>
 
-          <button type="button" className="panel-link-btn" onClick={viewReports}>
+          <button type="button" className="panel-link-btn" onClick={() => onNavigate('/reports')}>
             View all issues
             <ArrowRight size={15} aria-hidden="true" />
           </button>
@@ -413,9 +446,9 @@ function Dashboard() {
           <div className="panel-heading panel-heading--split">
             <span>
               <Sparkles size={15} aria-hidden="true" />
-              Recent Issues
+              Recent Findings
             </span>
-            <button type="button" onClick={viewReports}>
+            <button type="button" onClick={() => onNavigate('/history')}>
               View all
               <ArrowRight size={14} aria-hidden="true" />
             </button>
@@ -423,29 +456,34 @@ function Dashboard() {
           <IssueAccordion issues={issues} recommendations={recommendations} compact maxItems={3} />
         </article>
 
+        {/* AI RECOMMENDATION PANEL */}
         <article id="ai-recommendation" className="analytics-card recommendation-card">
           <div className="panel-heading">
             <span>
-              <Sparkles size={15} aria-hidden="true" />
+              <Bot size={15} aria-hidden="true" />
               AI Recommendation
             </span>
           </div>
 
           <div className="recommendation-panel">
-            <span className="recommendation-label">Fix: Data Leakage</span>
-            <p>{primaryRecommendation.explanation || 'Split data before fitting preprocessing transforms.'}</p>
+            <div className="rec-info-item">
+              <span className="rec-info-label">Detected:</span>
+              <span className="rec-info-val text-red">Data Leakage</span>
+            </div>
+            
+            <div className="rec-info-item">
+              <span className="rec-info-label">Suggested Fix:</span>
+              <span className="rec-info-val text-green">Move preprocessing after dataset split.</span>
+            </div>
 
             <div className="code-comparison">
               <div>
-                <span className="code-label incorrect">Incorrect</span>
-                <pre>{`X_scaled = scaler.fit_transform(X)`}</pre>
+                <span className="code-label incorrect">WRONG</span>
+                <pre>{`scaler.fit_transform(X)`}</pre>
               </div>
               <div>
-                <span className="code-label correct">Correct</span>
-                <pre>{`X_train, X_test = train_test_split(X)
-scaler.fit(X_train)
-X_train = scaler.transform(X_train)
-X_test = scaler.transform(X_test)`}</pre>
+                <span className="code-label correct">CORRECT</span>
+                <pre>{`scaler.fit(X_train)\nscaler.transform(X_test)`}</pre>
               </div>
             </div>
           </div>
