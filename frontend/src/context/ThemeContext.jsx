@@ -1,30 +1,29 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { STORAGE_KEYS } from '../utils/constants.js';
 
 const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('leakagelens_theme') || 'dark';
+    return localStorage.getItem(STORAGE_KEYS.theme) || 'dark';
   });
 
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === 'light') {
-      root.classList.add('light-theme');
-      root.classList.remove('dark-theme');
-    } else {
-      root.classList.add('dark-theme');
-      root.classList.remove('light-theme');
-    }
-    localStorage.setItem('leakagelens_theme', theme);
+    root.dataset.theme = theme;
+    root.classList.toggle('light-theme', theme === 'light');
+    root.classList.toggle('dark-theme', theme === 'dark');
+    localStorage.setItem(STORAGE_KEYS.theme, theme);
   }, [theme]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
+  const value = useMemo(() => ({ theme, setTheme, toggleTheme }), [theme]);
+
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );
