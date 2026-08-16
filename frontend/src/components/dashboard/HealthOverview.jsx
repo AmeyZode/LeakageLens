@@ -8,12 +8,16 @@ function HealthOverview({ scan }) {
   const totalIssues = scan?.totalIssues ?? 0;
   const riskScore = scan?.riskScore ?? 0;
   const filesScanned = scan?.filesScanned ?? 0;
+  const criticalIssues = scan?.counts.critical ?? 0;
+  const majorIssues = scan?.counts.major ?? 0;
 
   return (
     <section className="health-overview">
       <div className="health-main card">
-        <ScoreGauge score={score} label={scan?.healthLabel || 'No scan'} />
-        <div>
+        <div className="health-gauge-wrap">
+          <ScoreGauge score={score} label={scan?.healthLabel || 'No scan'} />
+        </div>
+        <div className="health-copy">
           <span className="eyebrow">Pipeline Health</span>
           <h2>{scan ? `${scan.riskLevel} risk posture` : 'Ready for first scan'}</h2>
           <p>
@@ -21,6 +25,11 @@ function HealthOverview({ scan }) {
               ? `${totalIssues} findings were mapped to backend rule output from ${scan.sourcePath}.`
               : 'Start with a backend-accessible project path to populate the dashboard.'}
           </p>
+          <div className="health-signal-row" aria-label="Current scan summary">
+            <span><strong>{criticalIssues}</strong> critical</span>
+            <span><strong>{majorIssues}</strong> major</span>
+            <span><strong>{filesScanned}</strong> files</span>
+          </div>
         </div>
       </div>
       <div className="metric-grid">
