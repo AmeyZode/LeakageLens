@@ -1,11 +1,14 @@
 from pathlib import Path
 from typing import List, Dict, Any
+import logging
 from leakagelens.core.ingestion import discover_files
 from leakagelens.core.normalization import normalize_file
 from leakagelens.core.context_builder import build_context
 from leakagelens.rules import ALL_RULES
 from leakagelens.reporting.scorer import calculate_health_score
 from leakagelens.ai.recommendation_engine import RecommendationEngine
+
+logger = logging.getLogger(__name__)
 
 class PipelineAnalyzer:
     def __init__(self, ai_provider: str = "fallback", api_key: str = None):
@@ -18,6 +21,7 @@ class PipelineAnalyzer:
 
         files = discover_files(str(path))
         all_issues = []
+        rule_errors = []
 
         # Map to quickly load raw lines of files for code context extracts
         file_cache = {}
@@ -31,8 +35,21 @@ class PipelineAnalyzer:
                 try:
                     issues = rule.analyze(normalized, context)
                     all_issues.extend(issues)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    error = {
+                        "file_path": str(file_path),
+                        "rule_id": rule.rule_id,
+                        "rule_name": rule.rule_name,
+                        "error": str(exc),
+                    }
+                    rule_errors.append(error)
+                    logger.warning(
+                        "Rule %s failed on %s: %s",
+                        rule.rule_id,
+                        file_path,
+                        exc,
+                        exc_info=True,
+                    )
 
         score, counts = calculate_health_score(all_issues)
 
@@ -76,5 +93,7 @@ class PipelineAnalyzer:
         return {
             "score": score,
             "counts": counts,
-            "issues": issues_list
+            "issues": issues_list,
+            "files_scanned": len(files),
+            "rule_errors": rule_errors
         }

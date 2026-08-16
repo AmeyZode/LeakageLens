@@ -1,8 +1,0 @@
-LICENSE
-pyproject.toml
-leakagelens.egg-info/PKG-INFO
-leakagelens.egg-info/SOURCES.txt
-leakagelens.egg-info/dependency_links.txt
-leakagelens.egg-info/entry_points.txt
-leakagelens.egg-info/requires.txt
-leakagelens.egg-info/top_level.txt

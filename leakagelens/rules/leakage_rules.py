@@ -1,7 +1,36 @@
-from typing import List
+import ast
+from typing import List, Optional
 from leakagelens.rules.base_rule import BaseRule, Issue
 from leakagelens.core.normalization import NormalizedFile
 from leakagelens.core.context_builder import PipelineContext
+
+
+def _func_name(node: ast.AST) -> str:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        base = _func_name(node.value)
+        return f"{base}.{node.attr}" if base else node.attr
+    return ""
+
+
+def _source_line(file: NormalizedFile, line_number: int) -> str:
+    lines = file.raw_source.splitlines()
+    if 1 <= line_number <= len(lines):
+        return lines[line_number - 1].strip()
+    return ""
+
+
+def _first_call_line(file: NormalizedFile, names: set[str]) -> Optional[int]:
+    if not file.ast_node:
+        return None
+
+    lines = [
+        node.lineno
+        for node in ast.walk(file.ast_node)
+        if isinstance(node, ast.Call) and _func_name(node.func).split(".")[-1] in names
+    ]
+    return min(lines) if lines else None
 
 class PreprocessingLeakageRule(BaseRule):
     """Detects preprocessing fit/transform executed before data splits."""
@@ -11,28 +40,33 @@ class PreprocessingLeakageRule(BaseRule):
     description = "Preprocessing fit/transform executed before data splits."
 
     def analyze(self, file: NormalizedFile, context: PipelineContext) -> List[Issue]:
+        if not file.ast_node:
+            return []
+
+        split_line = _first_call_line(file, {"train_test_split"})
+        if split_line is None:
+            return []
+
         issues = []
-        if "preprocessing_leakage.py" in file.path.name:
+        for node in ast.walk(file.ast_node):
+            if not isinstance(node, ast.Call):
+                continue
+
+            func_name = _func_name(node.func)
+            if func_name.split(".")[-1] != "fit_transform":
+                continue
+            if getattr(node, "lineno", split_line + 1) >= split_line:
+                continue
+
             issues.append(Issue(
                 rule_id=self.rule_id,
                 rule_name=self.rule_name,
                 severity=self.severity,
                 file_path=str(file.path),
-                line_number=13,
-                context_line="X_scaled = scaler.fit_transform(X)",
-                description="StandardScaler.fit_transform() is executed on target variable X prior to train_test_split. This causes future test distribution parameters to leak into training data.",
-                suggested_fix="scaler = StandardScaler()\nX_train = scaler.fit_transform(X_train)\nX_test = scaler.transform(X_test)"
-            ))
-        elif "leaky_notebook.ipynb" in file.path.name:
-            issues.append(Issue(
-                rule_id=self.rule_id,
-                rule_name=self.rule_name,
-                severity=self.severity,
-                file_path=str(file.path),
-                line_number=30,
-                context_line="X_scaled = scaler.fit_transform(X)",
-                description="StandardScaler.fit_transform() is executed on entire dataset prior to splitting. This leaks data structure into training.",
-                suggested_fix="Perform train_test_split first, then scale the training dataset."
+                line_number=node.lineno,
+                context_line=_source_line(file, node.lineno),
+                description="A preprocessing fit_transform call runs before train_test_split. Fitting preprocessing on the full dataset can leak test-set distribution information into training.",
+                suggested_fix="Split the dataset first, then call fit_transform on training data and transform on validation/test data."
             ))
         return issues
 
