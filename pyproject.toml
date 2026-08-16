@@ -9,6 +9,7 @@ description = "AI-Powered Machine Learning Pipeline Auditor"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "fastapi>=0.110",
     "pydantic>=2.0",
     "networkx>=3.0",
     "typer>=0.9.0",
@@ -16,12 +17,22 @@ dependencies = [
     "pyyaml>=6.0",
     "nbformat>=5.0",
     "openai>=1.0",
+    "uvicorn>=0.29",
 ]
 
 [project.optional-dependencies]
 dev = [
+    "httpx>=0.27",
     "pytest>=7.0",
 ]
 
 [project.scripts]
 leakagelens = "leakagelens.main:app"
+
+[tool.setuptools.packages.find]
+include = ["leakagelens*"]
+exclude = ["backend*", "frontend*", "sample_projects*", "tests*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+

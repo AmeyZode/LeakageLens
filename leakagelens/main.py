@@ -36,10 +36,12 @@ def audit(
     
     # 2. Analyze files
     all_issues = []
+    file_cache = {}
     engine = RecommendationEngine(provider=ai, api_key=api_key or os.getenv("OPENAI_API_KEY"))
     
     for file_path in files:
         normalized = normalize_file(file_path)
+        file_cache[str(file_path)] = normalized
         context = build_context(normalized)
         
         for rule in ALL_RULES:
@@ -57,8 +59,9 @@ def audit(
     for issue in all_issues:
         # Extract surrounding context lines for AI
         code_context = ""
-        if normalized.raw_source:
-            lines = normalized.raw_source.splitlines()
+        issue_file = file_cache.get(issue.file_path)
+        if issue_file and issue_file.raw_source:
+            lines = issue_file.raw_source.splitlines()
             start = max(0, issue.line_number - 3)
             end = min(len(lines), issue.line_number + 3)
             code_context = "\n".join(lines[start:end])

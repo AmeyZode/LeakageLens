@@ -1,7 +1,64 @@
+import ast
+import re
 from typing import List
 from leakagelens.rules.base_rule import BaseRule, Issue
 from leakagelens.core.normalization import NormalizedFile
 from leakagelens.core.context_builder import PipelineContext
+
+
+STOCHASTIC_CALLS = {
+    "train_test_split",
+    "RandomForestClassifier",
+    "RandomForestRegressor",
+    "ExtraTreesClassifier",
+    "ExtraTreesRegressor",
+    "GradientBoostingClassifier",
+    "GradientBoostingRegressor",
+    "KMeans",
+    "PCA",
+    "SGDClassifier",
+    "SGDRegressor",
+}
+
+SEED_CALLS = {
+    "random.seed",
+    "np.random.seed",
+    "numpy.random.seed",
+    "torch.manual_seed",
+    "tensorflow.random.set_seed",
+    "tf.random.set_seed",
+    "seed_everything",
+}
+
+
+def _func_name(node: ast.AST) -> str:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        base = _func_name(node.value)
+        return f"{base}.{node.attr}" if base else node.attr
+    return ""
+
+
+def _source_line(file: NormalizedFile, line_number: int) -> str:
+    lines = file.raw_source.splitlines()
+    if 1 <= line_number <= len(lines):
+        return lines[line_number - 1].strip()
+    return ""
+
+
+def _has_keyword(node: ast.Call, keyword: str) -> bool:
+    return any(kw.arg == keyword for kw in node.keywords)
+
+
+def _stochastic_calls(file: NormalizedFile) -> List[ast.Call]:
+    if not file.ast_node:
+        return []
+    return [
+        node
+        for node in ast.walk(file.ast_node)
+        if isinstance(node, ast.Call) and _func_name(node.func).split(".")[-1] in STOCHASTIC_CALLS
+    ]
 
 class RandomStateRule(BaseRule):
     """Detects missing random_state/seed arguments in stochastic operations."""
@@ -12,37 +69,20 @@ class RandomStateRule(BaseRule):
 
     def analyze(self, file: NormalizedFile, context: PipelineContext) -> List[Issue]:
         issues = []
-        if "preprocessing_leakage.py" in file.path.name:
+        for node in _stochastic_calls(file):
+            name = _func_name(node.func).split(".")[-1]
+            if _has_keyword(node, "random_state"):
+                continue
+
             issues.append(Issue(
                 rule_id=self.rule_id,
                 rule_name=self.rule_name,
                 severity=self.severity,
                 file_path=str(file.path),
-                line_number=16,
-                context_line="X_train, X_test, y_train, y_test = train_test_split(X_scaled, y)",
-                description="train_test_split is initialized without setting random_state. This makes dataset splitting non-deterministic.",
-                suggested_fix="train_test_split(X_scaled, y, random_state=42)"
-            ))
-            issues.append(Issue(
-                rule_id=self.rule_id,
-                rule_name=self.rule_name,
-                severity=self.severity,
-                file_path=str(file.path),
-                line_number=19,
-                context_line="model = RandomForestClassifier()",
-                description="RandomForestClassifier is initialized without setting random_state. Stochastic model components will yield variable results across runs.",
-                suggested_fix="RandomForestClassifier(random_state=42)"
-            ))
-        elif "leaky_notebook.ipynb" in file.path.name:
-            issues.append(Issue(
-                rule_id=self.rule_id,
-                rule_name=self.rule_name,
-                severity=self.severity,
-                file_path=str(file.path),
-                line_number=33,
-                context_line="X_train, X_test, y_train, y_test = train_test_split(X_scaled, y)",
-                description="train_test_split is initialized without setting random_state. This makes dataset splitting non-deterministic.",
-                suggested_fix="train_test_split(X_scaled, y, random_state=42)"
+                line_number=node.lineno,
+                context_line=_source_line(file, node.lineno),
+                description=f"{name} is called without random_state, making stochastic behavior non-deterministic across runs.",
+                suggested_fix=f"Pass random_state=42 to {name} or wire a project-level seed constant."
             ))
         return issues
 
@@ -54,21 +94,27 @@ class GlobalSeedRule(BaseRule):
     description = "Missing global seed initializations."
 
     def analyze(self, file: NormalizedFile, context: PipelineContext) -> List[Issue]:
-        # We can flag global seed warning if no np.random.seed or random.seed is in imports/calls
-        # For simplicity, if it's preprocessing_leakage.py or leaky_notebook.ipynb, we return a global seed warning
-        issues = []
-        if "preprocessing_leakage.py" in file.path.name or "leaky_notebook.ipynb" in file.path.name:
-            issues.append(Issue(
+        if not file.ast_node or not _stochastic_calls(file):
+            return []
+
+        has_seed = any(
+            isinstance(node, ast.Call) and _func_name(node.func) in SEED_CALLS
+            for node in ast.walk(file.ast_node)
+        )
+        if has_seed:
+            return []
+
+        first_line = min(node.lineno for node in _stochastic_calls(file))
+        return [Issue(
                 rule_id=self.rule_id,
                 rule_name=self.rule_name,
                 severity=self.severity,
                 file_path=str(file.path),
-                line_number=1,
-                context_line="import numpy as np",
-                description="No global seed initialization (e.g. np.random.seed) detected in the project codebase. This can affect reproducibility of randomized operations.",
-                suggested_fix="Add np.random.seed(42) and random.seed(42) at the start of your program."
-            ))
-        return issues
+                line_number=first_line,
+                context_line=_source_line(file, first_line),
+                description="Stochastic operations are present, but no global seed initialization was detected in this file.",
+                suggested_fix="Initialize project seeds near startup, for example random.seed(42) and np.random.seed(42)."
+            )]
 
 class HardcodedPathsRule(BaseRule):
     """Detects hardcoded absolute file system paths."""
@@ -78,16 +124,27 @@ class HardcodedPathsRule(BaseRule):
     description = "Hardcoded absolute file system paths."
 
     def analyze(self, file: NormalizedFile, context: PipelineContext) -> List[Issue]:
+        if not file.ast_node:
+            return []
+
         issues = []
-        if "leaky_notebook.ipynb" in file.path.name:
+        windows_path = re.compile(r"^[a-zA-Z]:[\\/]")
+        for node in ast.walk(file.ast_node):
+            if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+                continue
+
+            value = node.value
+            if not (value.startswith("/") or value.startswith("~/") or windows_path.match(value)):
+                continue
+
             issues.append(Issue(
                 rule_id=self.rule_id,
                 rule_name=self.rule_name,
                 severity=self.severity,
                 file_path=str(file.path),
-                line_number=13,
-                context_line='df = pd.read_csv("C:\\Users\\admin\\dataset.csv")',
-                description="Hardcoded absolute path 'C:\\Users\\admin\\dataset.csv' detected. This prevents execution on different machines/environments.",
-                suggested_fix="Use relative paths or environment variables, e.g., Path(__file__).parent / 'dataset.csv'"
+                line_number=node.lineno,
+                context_line=_source_line(file, node.lineno),
+                description=f"Hardcoded absolute path '{value}' detected. This can break execution across machines and environments.",
+                suggested_fix="Use relative paths, configuration, or environment variables instead of machine-specific absolute paths."
             ))
         return issues

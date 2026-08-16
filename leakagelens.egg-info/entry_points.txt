@@ -1,2 +1,0 @@
-[console_scripts]
-leakagelens = leakagelens.main:app
