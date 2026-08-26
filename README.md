@@ -192,17 +192,6 @@ LeakageLens supports sub-second AI patch generation using Groq's high-speed LPU 
 
 ---
 
-## 💻 CLI & API Usage
-
-### Running via CLI
-```bash
-# Audit a Python file or directory
-python3 -m leakagelens.main audit sample_projects/customer_churn_pipeline.py
-
-# Export audit to Markdown
-python3 -m leakagelens.main audit sample_projects/customer_churn_pipeline.py --format markdown --output audit_report.md
-```
-
 ### Running Backend REST API Directly
 ```bash
 # Scan a live code snippet
