@@ -29,7 +29,6 @@
   - [One-Command Startup](#one-command-startup)
   - [Manual Setup (Backend + Frontend)](#manual-setup)
 - [Groq AI Engine Configuration](#-groq-ai-engine-configuration)
-- [CLI & API Usage](#-cli--api-usage)
 - [Project Structure](#-project-structure)
 - [Academic Context & Authors](#-academic-context--authors)
 
