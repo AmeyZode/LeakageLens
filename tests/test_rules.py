@@ -159,3 +159,56 @@ y_pred = model.predict(X_test)
     issues = _analyze_source(tmp_path, source, TestOnTrainRule())
 
     assert issues == []
+
+
+def test_temporal_leakage_rule_detects_random_split_on_dates(tmp_path):
+    from leakagelens.rules.leakage_rules import TemporalLeakageRule
+    source = """
+import pandas as pd
+from sklearn.model_selection import train_test_split
+
+df = pd.read_csv("data.csv")
+df["timestamp"] = pd.to_datetime(df["date"])
+X_train, X_test = train_test_split(df)
+"""
+    issues = _analyze_source(tmp_path, source, TemporalLeakageRule())
+    assert len(issues) == 1
+    assert issues[0].rule_id == "L003"
+
+
+def test_feature_leakage_rule_detects_target_in_X(tmp_path):
+    from leakagelens.rules.leakage_rules import FeatureLeakageRule
+    source = """
+X = df[["age", "churn"]]
+"""
+    issues = _analyze_source(tmp_path, source, FeatureLeakageRule())
+    assert len(issues) == 1
+    assert issues[0].rule_id == "L004"
+
+
+def test_metric_misuse_rule_detects_regression_metric_on_classifier(tmp_path):
+    from leakagelens.rules.evaluation_rules import MetricMisuseRule
+    source = """
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import mean_squared_error
+
+clf = RandomForestClassifier()
+mse = mean_squared_error(y_test, preds)
+"""
+    issues = _analyze_source(tmp_path, source, MetricMisuseRule())
+    assert len(issues) == 1
+    assert issues[0].rule_id == "E003"
+
+
+def test_unused_imports_rule_detects_unreferenced_modules(tmp_path):
+    from leakagelens.rules.quality_rules import UnusedImportsRule
+    source = """
+import math
+import pandas as pd
+
+df = pd.read_csv("data.csv")
+"""
+    issues = _analyze_source(tmp_path, source, UnusedImportsRule())
+    assert len(issues) == 1
+    assert issues[0].rule_id == "Q001"
+

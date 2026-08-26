@@ -6,7 +6,6 @@ import { healthCheck } from '../../services/api.js';
 import { useSettings } from '../../context/SettingsContext.jsx';
 import { useUI } from '../../context/UIContext.jsx';
 import NotificationsMenu from './NotificationsMenu.jsx';
-import UserMenu from './UserMenu.jsx';
 
 function TopBar({ route, navigate }) {
   const { theme, toggleTheme } = useSettings();
@@ -78,7 +77,6 @@ function TopBar({ route, navigate }) {
           />
           {notificationsOpen && <NotificationsMenu onClose={() => setNotificationsOpen(false)} />}
         </div>
-        <UserMenu navigate={navigate} />
       </div>
     </header>
   );

@@ -1,6 +1,7 @@
 from typing import Dict
 import json
 import logging
+import os
 from leakagelens.rules.base_rule import Issue
 from leakagelens.ai.prompt_templates import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
 
@@ -79,6 +80,42 @@ class RecommendationEngine:
             {"explanation": "No static recommendation available.", "fix": "# Verify code structure manually"}
         )
         
+        if self.provider == "groq" and (self.api_key or os.getenv("GROQ_API_KEY")):
+            try:
+                from openai import OpenAI
+                api_key = self.api_key or os.getenv("GROQ_API_KEY")
+                client = OpenAI(
+                    api_key=api_key,
+                    base_url="https://api.groq.com/openai/v1"
+                )
+                
+                prompt = USER_PROMPT_TEMPLATE.format(
+                    file_path=issue.file_path,
+                    line_number=issue.line_number,
+                    rule_name=issue.rule_name,
+                    severity=issue.severity,
+                    description=issue.description,
+                    code_context=code_context
+                )
+                
+                response = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format={"type": "json_object"}
+                )
+                
+                data = json.loads(response.choices[0].message.content)
+                return {
+                    "explanation": data.get("explanation", fallback["explanation"]),
+                    "fix": data.get("fix", fallback["fix"])
+                }
+            except Exception as e:
+                logger.error(f"Groq recommendation failed: {e}. Falling back.")
+                return fallback
+
         if self.provider == "openai" and self.api_key:
             try:
                 from openai import OpenAI

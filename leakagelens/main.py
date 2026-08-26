@@ -17,7 +17,12 @@ from leakagelens.ai.recommendation_engine import RecommendationEngine
 
 app = typer.Typer(help="LeakageLens CLI - AI-Powered ML Pipeline Auditor")
 
-@app.command()
+@app.callback()
+def main():
+    """LeakageLens CLI - AI-Powered ML Pipeline Auditor"""
+    pass
+
+@app.command("audit")
 def audit(
     path: str = typer.Argument(".", help="The target directory or file to audit"),
     ai: str = typer.Option("fallback", "--ai", help="AI provider (fallback or openai)"),

@@ -29,6 +29,7 @@ def _mentions_train(node: ast.AST) -> bool:
             return True
     return False
 
+
 class TestOnTrainRule(BaseRule):
     """Detects evaluations or predictions executed directly on training datasets."""
     rule_id = "E001"
@@ -65,6 +66,7 @@ class TestOnTrainRule(BaseRule):
             ))
         return issues
 
+
 class MissingValidationRule(BaseRule):
     """Detects missing validation data splits (i.e. model trained on entire dataset)."""
     rule_id = "E002"
@@ -72,8 +74,40 @@ class MissingValidationRule(BaseRule):
     severity = "major"
     description = "Missing validation data splits."
 
+    SPLIT_CALLS = {"train_test_split", "KFold", "StratifiedKFold", "TimeSeriesSplit", "cross_val_score"}
+
     def analyze(self, file: NormalizedFile, context: PipelineContext) -> List[Issue]:
-        return []
+        if not file.ast_node:
+            return []
+
+        # Check if file has any dataset splitting calls
+        has_split = any(
+            isinstance(node, ast.Call) and _func_name(node.func).split(".")[-1] in self.SPLIT_CALLS
+            for node in ast.walk(file.ast_node)
+        )
+        if has_split:
+            return []
+
+        issues = []
+        for node in ast.walk(file.ast_node):
+            if not isinstance(node, ast.Call):
+                continue
+            short_name = _func_name(node.func).split(".")[-1]
+            if short_name == "fit" and len(node.args) >= 2:
+                first_arg = node.args[0]
+                if isinstance(first_arg, ast.Name) and first_arg.id.upper() in {"X", "DF", "DATA", "DATASET"}:
+                    issues.append(Issue(
+                        rule_id=self.rule_id,
+                        rule_name=self.rule_name,
+                        severity=self.severity,
+                        file_path=str(file.path),
+                        line_number=node.lineno,
+                        context_line=_source_line(file, node.lineno),
+                        description=f"Model fit is called on full feature set '{first_arg.id}' without any train/test or cross-validation split detected in this file.",
+                        suggested_fix="Split dataset into train and validation/test sets (e.g. via train_test_split) before model fitting."
+                    ))
+        return issues
+
 
 class MetricMisuseRule(BaseRule):
     """Detects regression metrics used for classification, or vice versa."""
@@ -82,5 +116,53 @@ class MetricMisuseRule(BaseRule):
     severity = "major"
     description = "Regression metrics used for classification, or vice versa."
 
+    CLASSIFICATION_METRICS = {"accuracy_score", "precision_score", "recall_score", "f1_score", "roc_auc_score", "log_loss"}
+    REGRESSION_METRICS = {"mean_squared_error", "mean_absolute_error", "r2_score", "root_mean_squared_error", "explained_variance_score"}
+
+    CLASSIFICATION_MODELS = {"RandomForestClassifier", "LogisticRegression", "SVC", "GradientBoostingClassifier", "KNeighborsClassifier"}
+    REGRESSION_MODELS = {"RandomForestRegressor", "LinearRegression", "Lasso", "Ridge", "GradientBoostingRegressor", "KNeighborsRegressor"}
+
     def analyze(self, file: NormalizedFile, context: PipelineContext) -> List[Issue]:
-        return []
+        if not file.ast_node:
+            return []
+
+        # Find models initialized in file
+        has_clf_model = False
+        has_reg_model = False
+        for node in ast.walk(file.ast_node):
+            if isinstance(node, ast.Call):
+                name = _func_name(node.func).split(".")[-1]
+                if name in self.CLASSIFICATION_MODELS:
+                    has_clf_model = True
+                elif name in self.REGRESSION_MODELS:
+                    has_reg_model = True
+
+        issues = []
+        for node in ast.walk(file.ast_node):
+            if not isinstance(node, ast.Call):
+                continue
+            metric_name = _func_name(node.func).split(".")[-1]
+
+            if has_clf_model and metric_name in self.REGRESSION_METRICS:
+                issues.append(Issue(
+                    rule_id=self.rule_id,
+                    rule_name=self.rule_name,
+                    severity=self.severity,
+                    file_path=str(file.path),
+                    line_number=node.lineno,
+                    context_line=_source_line(file, node.lineno),
+                    description=f"Regression metric '{metric_name}' is called in a file containing classification models. Mismatched evaluation metrics distort model validation.",
+                    suggested_fix=f"Use classification evaluation metrics (e.g. accuracy_score, f1_score, roc_auc_score) for classification models."
+                ))
+            elif has_reg_model and metric_name in self.CLASSIFICATION_METRICS:
+                issues.append(Issue(
+                    rule_id=self.rule_id,
+                    rule_name=self.rule_name,
+                    severity=self.severity,
+                    file_path=str(file.path),
+                    line_number=node.lineno,
+                    context_line=_source_line(file, node.lineno),
+                    description=f"Classification metric '{metric_name}' is called in a file containing regression models. Mismatched evaluation metrics distort model validation.",
+                    suggested_fix=f"Use regression evaluation metrics (e.g. mean_squared_error, r2_score) for regression models."
+                ))
+        return issues

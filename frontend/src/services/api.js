@@ -57,6 +57,30 @@ export function scanProject({ path, aiProvider = 'fallback', apiKey = null, toke
   });
 }
 
+export async function uploadAndScanFile({ file, aiProvider = 'fallback', apiKey = null, token }) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('ai_provider', aiProvider);
+  if (apiKey) formData.append('api_key', apiKey);
+
+  const response = await fetch(`${API_BASE}/api/upload`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  });
+
+  const data = await parseResponse(response);
+
+  if (!response.ok) {
+    const detail = typeof data === 'object' && data !== null ? data.detail : data;
+    throw new Error(detail || `Upload request failed with status ${response.status}`);
+  }
+
+  return data;
+}
+
 export function getHistory({ token } = {}) {
   return request('/api/history', { token });
 }

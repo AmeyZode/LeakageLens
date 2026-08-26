@@ -12,6 +12,7 @@ function SettingsPage() {
     theme,
     setTheme,
     aiProvider,
+    groqApiKey,
     openAiKey,
     ollamaUrl,
     defaultScanPath,
@@ -48,7 +49,7 @@ function SettingsPage() {
       </Card>
 
       <Card>
-        <h2 className="settings-section-title">AI Provider</h2>
+        <h2 className="settings-section-title">AI Provider & API Keys</h2>
         <Select
           label="Provider"
           value={aiProvider}
@@ -60,10 +61,19 @@ function SettingsPage() {
           }))}
         />
         <label className="field">
+          <span>Groq API Key</span>
+          <input
+            type="password"
+            value={groqApiKey || ''}
+            onChange={(event) => updateSetting('groqApiKey', event.target.value)}
+            placeholder="gsk_..."
+          />
+        </label>
+        <label className="field">
           <span>OpenAI API Key</span>
           <input
             type="password"
-            value={openAiKey}
+            value={openAiKey || ''}
             onChange={(event) => updateSetting('openAiKey', event.target.value)}
             placeholder="sk-..."
           />

@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { getRecommendation, scanProject } from '../services/api.js';
+import { getRecommendation, scanProject, uploadAndScanFile } from '../services/api.js';
 import { SCAN_STAGES, STORAGE_KEYS } from '../utils/constants.js';
 import { buildHistoryPayload, normalizeIssue, normalizeScanResponse } from '../utils/scanTransforms.js';
 import { useAuth } from './AuthContext.jsx';
@@ -28,13 +28,15 @@ function sleep(ms) {
 export function ScanProvider({ children }) {
   const { token } = useAuth();
   const { appendHistory } = useHistoryData();
-  const { runtimeAiProvider, openAiKey } = useSettings();
+  const { runtimeAiProvider, groqApiKey, openAiKey } = useSettings();
   const [currentScan, setCurrentScan] = useState(readLatestScan);
   const [rawScan, setRawScan] = useState(() => currentScan?.raw || null);
   const [scanStatus, setScanStatus] = useState('idle');
   const [scanError, setScanError] = useState(null);
   const [scanLogs, setScanLogs] = useState([]);
   const [selectedIssueId, setSelectedIssueId] = useState(null);
+
+  const activeApiKey = runtimeAiProvider === 'groq' ? groqApiKey : runtimeAiProvider === 'openai' ? openAiKey : null;
 
   const pushLog = useCallback((message, type = 'info') => {
     setScanLogs((current) => [
@@ -68,11 +70,11 @@ export function ScanProvider({ children }) {
 
       try {
         await sleep(180);
-        setStage('scanning', 'Analyzer is discovering files, normalizing AST, and applying rules.');
+        setStage('scanning', `Analyzer running with ${runtimeAiProvider} provider.`);
         const raw = await scanProject({
           path: trimmedPath,
           aiProvider: runtimeAiProvider,
-          apiKey: runtimeAiProvider === 'openai' ? openAiKey : null,
+          apiKey: activeApiKey,
           token,
         });
 
@@ -103,19 +105,70 @@ export function ScanProvider({ children }) {
         return null;
       }
     },
-    [appendHistory, openAiKey, runtimeAiProvider, setStage, token],
+    [activeApiKey, appendHistory, runtimeAiProvider, setStage, token],
+  );
+
+  const uploadFile = useCallback(
+    async (file) => {
+      if (!file) {
+        setScanError('Select a Python file (.py), Jupyter notebook (.ipynb), or ZIP archive (.zip).');
+        setStage('failed', 'Upload blocked because no file was selected.');
+        return null;
+      }
+
+      setScanError(null);
+      setScanLogs([]);
+      setStage('queued', `Queued upload scan for ${file.name}.`);
+      await sleep(180);
+      setStage('scanning', `Uploading ${file.name} to FastAPI analyzer (${runtimeAiProvider}).`);
+
+      try {
+        const raw = await uploadAndScanFile({
+          file,
+          aiProvider: runtimeAiProvider,
+          apiKey: activeApiKey,
+          token,
+        });
+
+        setStage('recommendations', 'Recommendation engine attached issue guidance.');
+        await sleep(160);
+
+        const sourcePath = `upload://${file.name}`;
+        const normalized = normalizeScanResponse(raw, sourcePath);
+        setCurrentScan(normalized);
+        setRawScan(raw);
+        setSelectedIssueId(normalized.issues[0]?.id || null);
+
+        try {
+          window.localStorage.setItem(
+            STORAGE_KEYS.latestScan,
+            JSON.stringify({ raw, sourcePath }),
+          );
+        } catch {}
+
+        appendHistory(buildHistoryPayload(normalized));
+        setStage('complete', `Upload scan completed with ${normalized.totalIssues} findings.`);
+        return normalized;
+      } catch (err) {
+        const message = err.message || 'Upload scan failed.';
+        setScanError(message);
+        setStage('failed', message);
+        return null;
+      }
+    },
+    [activeApiKey, appendHistory, runtimeAiProvider, setStage, token],
   );
 
   const refreshRecommendation = useCallback(
     async (issue) => {
       if (!issue || !currentScan) return null;
-      pushLog(`Refreshing recommendation for ${issue.rule_id}.`);
+      pushLog(`Refreshing recommendation for ${issue.rule_id} via ${runtimeAiProvider}.`);
 
       try {
         const recommendation = await getRecommendation({
           issue,
           aiProvider: runtimeAiProvider,
-          apiKey: runtimeAiProvider === 'openai' ? openAiKey : null,
+          apiKey: activeApiKey,
           token,
         });
 
@@ -161,6 +214,7 @@ export function ScanProvider({ children }) {
       selectedIssueId,
       setSelectedIssueId,
       runScan,
+      uploadFile,
       refreshRecommendation,
     }),
     [
@@ -169,6 +223,7 @@ export function ScanProvider({ children }) {
       rawScan,
       refreshRecommendation,
       runScan,
+      uploadFile,
       scanError,
       scanLogs,
       scanStatus,

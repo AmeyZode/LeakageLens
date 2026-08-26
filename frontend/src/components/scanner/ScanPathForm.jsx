@@ -16,6 +16,13 @@ function ScanPathForm({ defaultPath, isScanning, onScan, onPreviewFiles }) {
     onPreviewFiles(files);
   };
 
+  const PRESETS = [
+    { label: 'Synthetic Benchmark', path: 'sample_projects/leaky_pipeline_benchmark.py', badge: 'Recommended' },
+    { label: 'All Samples', path: 'sample_projects' },
+    { label: 'Preprocessing Leakage', path: 'sample_projects/preprocessing_leakage.py' },
+    { label: 'Current Repo Root', path: '.' },
+  ];
+
   return (
     <form className="scan-form card" onSubmit={handleSubmit}>
       <div className="scan-form-copy">
@@ -25,7 +32,28 @@ function ScanPathForm({ defaultPath, isScanning, onScan, onPreviewFiles }) {
         <div>
           <span className="eyebrow">Scanner Workspace</span>
           <h2>Audit an ML project for leakage risk</h2>
-          <p>Point LeakageLens at a backend-accessible project path, then review findings, rules, and generated reports.</p>
+          <p>Point LeakageLens at a backend-accessible project path, or select one of the quick preset targets below.</p>
+        </div>
+      </div>
+
+      <div className="preset-chips-container">
+        <span className="preset-label">Quick Presets:</span>
+        <div className="preset-chips">
+          {PRESETS.map((preset) => (
+            <button
+              key={preset.path}
+              type="button"
+              className={`preset-chip ${path === preset.path ? 'preset-chip--active' : ''}`}
+              onClick={() => {
+                setPath(preset.path);
+                onScan(preset.path);
+              }}
+              disabled={isScanning}
+            >
+              <span>{preset.label}</span>
+              {preset.badge && <span className="preset-badge">{preset.badge}</span>}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -58,7 +86,7 @@ function ScanPathForm({ defaultPath, isScanning, onScan, onPreviewFiles }) {
             Upload Project
           </Button>
           <Button type="submit" icon={<Play size={17} />} disabled={isScanning}>
-            {isScanning ? 'Scanning' : 'Start Scan'}
+            {isScanning ? 'Scanning...' : 'Start Scan'}
           </Button>
         </div>
       </div>

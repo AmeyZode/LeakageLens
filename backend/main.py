@@ -1,9 +1,11 @@
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 import datetime
+import shutil
+import tempfile
 
 from backend.analyzer import PipelineAnalyzer
 from leakagelens.rules.base_rule import Issue
@@ -73,7 +75,7 @@ class RecommendationRequest(BaseModel):
 # Root endpoint / Health Check
 @app.get("/api/health")
 def health_check():
-    return {"status": "ok", "timestamp": datetime.datetime.utcnow().isoformat()}
+    return {"status": "ok", "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()}
 
 # 1. Google OAuth Token Verification
 @app.post("/api/auth/google")
@@ -95,7 +97,17 @@ def scan_project(req: ScanRequest):
     # Resolve the path relative to the workspace root directory (which is parent of backend folder)
     workspace_root = Path(__file__).parent.parent.resolve()
     
-    if req.path == "." or not req.path:
+    if req.path.startswith("upload://"):
+        clean_name = req.path.replace("upload://", "").strip()
+        uploaded_target = UPLOAD_DIR / clean_name
+        if uploaded_target.exists():
+            target_path = uploaded_target.resolve()
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Uploaded file '{clean_name}' no longer exists in uploads folder."
+            )
+    elif req.path == "." or not req.path:
         target_path = workspace_root
     else:
         # Check if absolute path or relative to workspace root
@@ -123,6 +135,51 @@ def scan_project(req: ScanRequest):
             detail=f"Scan failed: {str(e)}"
         )
 
+# 2b. Upload Local File / ZIP Archive and Scan
+UPLOAD_DIR = Path(__file__).parent / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
+
+@app.post("/api/upload")
+def upload_file_and_scan(
+    file: UploadFile = File(...),
+    ai_provider: str = Form("fallback"),
+    api_key: Optional[str] = Form(None)
+):
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No filename provided in upload."
+        )
+
+    ext = Path(file.filename).suffix.lower()
+    allowed_exts = [".py", ".ipynb", ".zip"]
+    if ext not in allowed_exts:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported file extension '{ext}'. Allowed extensions: .py, .ipynb, .zip"
+        )
+
+    temp_save_path = UPLOAD_DIR / file.filename
+    try:
+        with open(temp_save_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        target_scan_path = temp_save_path
+        if ext == ".zip":
+            extract_dir = UPLOAD_DIR / f"extracted_{Path(file.filename).stem}"
+            extract_dir.mkdir(exist_ok=True)
+            shutil.unpack_archive(temp_save_path, extract_dir)
+            target_scan_path = extract_dir
+
+        analyzer = PipelineAnalyzer(ai_provider=ai_provider, api_key=api_key)
+        results = analyzer.scan_path(str(target_scan_path.resolve()))
+        return results
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Upload scan failed: {str(e)}"
+        )
+
 # 3. User scanning history logs (GET & POST)
 @app.get("/api/history")
 def get_history():
@@ -133,7 +190,7 @@ def log_history(req: HistoryLogRequest):
     new_id = len(MOCK_HISTORY) + 1
     record = {
         "id": new_id,
-        "date": datetime.datetime.utcnow().isoformat(),
+        "date": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "project_name": req.project_name,
         "score": req.score,
         "critical_count": req.critical_count,
