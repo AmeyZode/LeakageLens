@@ -5,6 +5,12 @@
 
 set -e
 
+# Check frontend dependencies
+if [ ! -d "frontend/node_modules" ]; then
+  echo "Installing frontend dependencies..."
+  npm install --prefix frontend
+fi
+
 echo "Starting LeakageLens Backend API on http://127.0.0.1:8000..."
 python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload &
 BACKEND_PID=$!
