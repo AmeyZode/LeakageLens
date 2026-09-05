@@ -35,4 +35,6 @@ exclude = ["backend*", "frontend*", "sample_projects*", "tests*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+testpaths = ["tests"]
+norecursedirs = ["backend/uploads", "sample_projects", "frontend", "node_modules", ".git", ".venv"]
 

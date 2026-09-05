@@ -1,24 +1,18 @@
 import React from 'react';
-import { Bot, FileBarChart2, LayoutDashboard, ScanSearch, Settings } from 'lucide-react';
+import { Clock3, ScanSearch, Settings } from 'lucide-react';
 import { NAV_ROUTES } from '../../routes/routeConfig.js';
 
 const MOBILE_ICONS = {
-  Dashboard: LayoutDashboard,
-  Scanner: ScanSearch,
-  Reports: FileBarChart2,
-  AI: Bot,
-  Settings,
+  Auditor: ScanSearch,
+  'Scan History': Clock3,
+  Settings: Settings,
 };
 
 function MobileNav({ currentPath, navigate }) {
-  const visibleRoutes = NAV_ROUTES.filter((route) =>
-    ['Dashboard', 'Scanner', 'Reports', 'AI', 'Settings'].includes(route.label),
-  );
-
   return (
     <nav className="mobile-nav" aria-label="Mobile navigation">
-      {visibleRoutes.map((route) => {
-        const Icon = MOBILE_ICONS[route.label] || LayoutDashboard;
+      {NAV_ROUTES.map((route) => {
+        const Icon = MOBILE_ICONS[route.label] || ScanSearch;
         const active = currentPath === route.path;
         return (
           <button

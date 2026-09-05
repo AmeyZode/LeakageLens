@@ -87,3 +87,19 @@ def test_recommendation_endpoint_returns_fallback_guidance():
 
     assert response.status_code == 200
     assert "fix" in response.json()
+
+
+def test_upload_file_and_scan_returns_compatible_payload():
+    file_content = b"import pandas as pd\nX_scaled = scaler.fit_transform(X)\nX_train, X_test = train_test_split(X_scaled)\n"
+    response = client.post(
+        "/api/upload",
+        files={"file": ("test_leaky_script.py", file_content, "text/x-python")},
+        data={"ai_provider": "fallback"}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert set(["score", "counts", "issues"]).issubset(body)
+    assert body["files_scanned"] >= 1
+    assert len(body["issues"]) >= 1
+

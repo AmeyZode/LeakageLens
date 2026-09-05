@@ -8,11 +8,14 @@ from leakagelens.rules import ALL_RULES
 from leakagelens.reporting.scorer import calculate_health_score
 from leakagelens.ai.recommendation_engine import RecommendationEngine
 
+from leakagelens.ml.leakage_detector_model import MLLeakageDetector
+
 logger = logging.getLogger(__name__)
 
 class PipelineAnalyzer:
     def __init__(self, ai_provider: str = "fallback", api_key: str = None):
         self.engine = RecommendationEngine(provider=ai_provider, api_key=api_key)
+        self.ml_detector = MLLeakageDetector()
 
     def scan_path(self, target_path: str) -> Dict[str, Any]:
         path = Path(target_path).resolve()
@@ -52,6 +55,20 @@ class PipelineAnalyzer:
                     )
 
         score, counts = calculate_health_score(all_issues)
+
+        # Predict ML Leakage Risk across scanned files
+        ml_scores = []
+        all_ml_breakdowns = []
+        for norm_file in file_cache.values():
+            try:
+                ml_res = self.ml_detector.predict_leakage_risk(norm_file)
+                ml_scores.append(ml_res["ml_risk_score"])
+                all_ml_breakdowns.extend(ml_res.get("feature_importances", []))
+            except Exception:
+                pass
+
+        avg_ml_risk = round(sum(ml_scores) / len(ml_scores), 1) if ml_scores else 0.0
+        ml_label = "CRITICAL_LEAKAGE_RISK" if avg_ml_risk >= 70.0 else ("SUSPICIOUS_PIPELINE" if avg_ml_risk >= 35.0 else "CLEAN_PIPELINE")
 
         issues_list = []
         for issue in all_issues:
@@ -95,5 +112,10 @@ class PipelineAnalyzer:
             "counts": counts,
             "issues": issues_list,
             "files_scanned": len(files),
-            "rule_errors": rule_errors
+            "rule_errors": rule_errors,
+            "ml_insights": {
+                "ml_risk_score": avg_ml_risk,
+                "confidence_label": ml_label,
+                "feature_importances": all_ml_breakdowns[:4]
+            }
         }

@@ -1,180 +1,262 @@
-# LeakageLens 🔍
+<div align="center">
 
-**LeakageLens** is an AI-powered static analysis platform designed to identify data leakage, reproducibility issues, evaluation mistakes, and machine learning anti-patterns in ML projects.
+# 🛡️ LeakageLens
 
-This document describes the directory tree, the role of each directory, and the purpose of every file in the workspace.
+**Static Data Leakage Analysis, ML Pipeline Reliability & AI Remediation Engine**
+
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![React 19](https://img.shields.io/badge/react-19.x-61dafb.svg)](https://react.dev/)
+[![Tailwind CSS v4](https://img.shields.io/badge/tailwind-v4.x-38bdf8.svg)](https://tailwindcss.com/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg)](https://fastapi.tiangolo.com/)
+[![Groq AI](https://img.shields.io/badge/Groq-GPT--OSS%20120B-f55036.svg)](https://groq.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+*An automated static analysis platform designed to uncover data contamination, hold-out leakage, lookahead bias, and reproducibility risks across machine learning scripts and Jupyter notebooks without executing untrusted code.*
+
+</div>
 
 ---
 
-## 📁 Complete Directory Tree
+## 📑 Table of Contents
 
-```text
-LeakageLens/
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── Sidebar.jsx
-│   │   │   ├── MetricCard.jsx
-│   │   │   └── IssueAccordion.jsx
-│   │   ├── views/
-│   │   │   ├── Home.jsx
-│   │   │   ├── Login.jsx
-│   │   │   ├── Profile.jsx
-│   │   │   └── Dashboard.jsx
-│   │   ├── App.jsx
-│   │   ├── main.jsx
-│   │   └── index.css
-│   ├── package.json
-│   ├── vite.config.js
-│   └── index.html
-├── backend/
-│   ├── main.py
-│   └── analyzer.py
-├── leakagelens/
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── ingestion.py
-│   │   ├── normalization.py
-│   │   └── context_builder.py
-│   ├── rules/
-│   │   ├── __init__.py
-│   │   ├── base_rule.py
-│   │   ├── leakage_rules.py
-│   │   ├── reproducibility_rules.py
-│   │   ├── evaluation_rules.py
-│   │   └── quality_rules.py
-│   ├── ai/
-│   │   ├── __init__.py
-│   │   ├── recommendation_engine.py
-│   │   └── prompt_templates.py
-│   ├── reporting/
-│   │   ├── __init__.py
-│   │   ├── scorer.py
-│   │   └── report_generator.py
-│   ├── __init__.py
-│   └── main.py
-├── tests/
-│   ├── test_ingestion.py
-│   ├── test_normalization.py
-│   ├── test_context_builder.py
-│   ├── test_rules.py
-│   └── test_reporting.py
-├── leakagelens.egg-info/
-│   ├── PKG-INFO
-│   ├── SOURCES.txt
-│   ├── dependency_links.txt
-│   ├── entry_points.txt
-│   ├── requires.txt
-│   └── top_level.txt
-├── sample_projects/
-│   ├── preprocessing_leakage.py
-│   └── leaky_notebook.ipynb
-├── pyproject.toml
-├── requirements.txt
-├── LICENSE
-└── LeakageLens.code-workspace
+- [Overview](#-overview)
+- [Key Features](#-key-features)
+- [Dual-Engine Architecture](#-dual-engine-architecture)
+- [Leakage Detection Catalog](#-leakage-detection-catalog)
+- [Web Application Modules](#-web-application-modules)
+- [Quick Start Guide](#-quick-start-guide)
+  - [Prerequisites](#prerequisites)
+  - [One-Command Startup](#one-command-startup)
+  - [Manual Setup (Backend + Frontend)](#manual-setup)
+- [Groq AI Engine Configuration](#-groq-ai-engine-configuration)
+- [Project Structure](#-project-structure)
+- [Academic Context & Authors](#-academic-context--authors)
+
+---
+
+## 🌟 Overview
+
+Data leakage is one of the most pervasive failure modes in machine learning: models achieve near-perfect cross-validation accuracy during development, but experience catastrophic performance degradation upon deployment to real-world data.
+
+**LeakageLens** statically inspects Python scripts (`.py`) and Jupyter Notebooks (`.ipynb`) using an Abstract Syntax Tree (AST) parser combined with a trained Machine Learning risk classifier to detect subtle dataflow leaks across train/test partition boundaries, quantify overoptimism risk, and generate context-aware code remediation patches powered by **Groq Cloud (GPT-OSS 120B / Llama 3.3)**.
+
+---
+
+## ✨ Key Features
+
+- 🔍 **Static AST Inspection**: Discovers boundary breaches without running unverified code or needing heavy execution environments.
+- 📓 **Jupyter Notebook Parser**: Automatically extracts multi-cell notebook flows (`.ipynb`), cell execution orders, and cross-cell dependencies.
+- ⚡ **Dual-Engine Detection**: Combines 10+ deterministic AST heuristic rules with a trained Random Forest + TF-IDF Machine Learning Classifier.
+- 📈 **ML Overoptimism Estimator**: Estimates generalization inflation gap ($\Delta = \text{Apparent} - \text{Production}$) and highlights dominant contamination drivers.
+- 🌐 **Interactive Directed Acyclic Graph (DAG)**: 5-stage dataflow visualizer tracing feature transformations across split boundaries.
+- 🤖 **Groq AI Code Fixer**: Sub-second generation of side-by-side refactored code patches using **Groq GPT-OSS 120B / Llama 3.3**.
+- 🎨 **Minimalist Dark UI**: Built with React 19, Tailwind CSS v4, and shadcn/ui design primitives.
+
+---
+
+## 🏗️ Dual-Engine Architecture
+
+```
+                       ┌───────────────────────────────────────────┐
+                       │        Input Python / Notebook Code       │
+                       └─────────────────────┬─────────────────────┘
+                                             │
+                     ┌───────────────────────┴───────────────────────┐
+                     ▼                                               ▼
+     ┌───────────────────────────────┐               ┌───────────────────────────────┐
+     │   Layer 1: AST Rule Engine    │               │  Layer 2: ML Leakage Model    │
+     │  (10+ Static Heuristic Rules) │               │  (RandomForest + TF-IDF)      │
+     ├───────────────────────────────┤               ├───────────────────────────────┤
+     │ • Preprocessing fit (L001)    │               │ • Continuous Risk (0-100%)    │
+     │ • Global Imputation (L002)    │               │ • Generalization Gap (Δ drop) │
+     │ • Target Proxy Leak (L004)    │               │ • Overoptimism Index          │
+     │ • Temporal Shuffling (L005)   │               │ • Feature Importances         │
+     │ • Group Leakage (L006)        │               │ • Probabilistic Classification│
+     │ • Random State Seeds (R001)   │               │   (Clean / Suspicious / Leak) │
+     │ • Evaluation on Train (E001)  │               │                               │
+     └───────────────┬───────────────┘               └───────────────┬───────────────┘
+                     │                                               │
+                     └───────────────────────┬───────────────────────┘
+                                             ▼
+                             ┌───────────────────────────────┐
+                             │       Merged Diagnosis        │
+                             │  (Score, Highlights & DAG)    │
+                             └───────────────┬───────────────┘
+                                             ▼
+                             ┌───────────────────────────────┐
+                             │  Layer 3: Groq (GPT-OSS 120B) │
+                             │  AI Code Transformation & Fix │
+                             └───────────────────────────────┘
 ```
 
 ---
 
-## 📦 Directory and File Reference
+## 🛡️ Leakage Detection Catalog
 
-### 1. Root Directory (`/`)
-Main workspace container housing project meta-configurations, licensing, dependencies, and code workspaces.
+LeakageLens evaluates code across 7+ core vulnerability archetypes:
 
-- **`pyproject.toml`**: Package installer configuration defining package dependencies, metadata, versions, and CLI entry points.
-- **`requirements.txt`**: Standard list of required Python library packages for quick environment set up (`pip install -r requirements.txt`).
-- **`LICENSE`**: MIT license terms governing open-source code usage.
-- **`LeakageLens.code-workspace`**: VS Code configuration file tailored to set up the LeakageLens environment.
-
----
-
-### 2. Web Interface Directories
-
-#### 📂 Folder: `/frontend/`
-Houses the React client-side application built with Vite.
-- **`package.json`**: Standard dependencies declaration for React and dev configurations for Vite.
-- **`vite.config.js`**: Vite configuration file enabling the `@vitejs/plugin-react` compiler and proxy settings to route `/api` to the backend.
-- **`index.html`**: Root mount entry point document importing `/src/main.jsx`.
-- **📂 Folder: `/frontend/src/`**: Contains core React logic.
-  - **`main.jsx`**: Bootstraps the React framework, mounting the root component into DOM.
-  - **`App.jsx`**: Top-level application shell coordinating views routing, user tokens, and global layout.
-  - **`index.css`**: Styling directives and HSL custom property variables.
-  - **📂 Subfolder: `src/components/`**: Exposes reusable React layout blocks.
-  - **📂 Subfolder: `src/views/`**: Exposes page route components.
-    - **`Home.jsx`**: Feature details overview cards.
-    - **`Login.jsx`**: Handles Gmail validation and loading spinners.
-    - **`Profile.jsx`**: Configurations input forms for custom OpenAI API keys.
-    - **`Dashboard.jsx`**: Scanner trigger buttons, radial charts, and suggested fix modals.
-
-#### 📂 Folder: `/backend/`
-Houses the FastAPI web service logic exposing endpoints for authentication, scanning, and recommendations.
-- **`main.py`**: FastAPI application handling auth, scanning target paths, logging profile records, and returning AI recommendations.
-- **`analyzer.py`**: Runs AST checks to detect preprocessing data leakage, unseeded splits, and unvalidated pipelines.
+| Rule ID | Violation Name | Severity | Description |
+| :--- | :--- | :--- | :--- |
+| **`L001`** | **Preprocessing Scaling Leakage** | `Critical` | Scaling (`StandardScaler`, `MinMaxScaler`, `RobustScaler`, `OneHotEncoder`) fitted on full dataset prior to `train_test_split`. |
+| **`L002`** | **Global Imputation Leakage** | `Critical` | Missing value imputers (`SimpleImputer`, `KNNImputer`) fitted across full dataset before partitioning. |
+| **`L004`** | **Target Variable & Encoding Leakage** | `Critical` | Target mean statistics (`groupby('target').transform('mean')`, `TargetEncoder`) computed globally without isolation. |
+| **`L005`** | **Temporal Lookahead Bias** | `Critical` | Time-series data split with `shuffle=True` or future expanding windows (`shift(-1)`), violating chronological causality. |
+| **`L006`** | **Group / Subject Identity Leakage** | `Major` | Grouped entities (patients, customers) split randomly instead of grouped (`GroupShuffleSplit`, `GroupKFold`). |
+| **`R001`** | **Missing Deterministic Seed** | `Major` | Stochastic splitters (`train_test_split`) or estimators (`RandomForestClassifier`) missing `random_state`. |
+| **`E001`** | **Evaluation on Training Partition** | `Major` | Reporting validation scores via `model.score(X_train, y_train)` instead of holdout test data. |
+| **`E003`** | **Evaluation Metric Misuse** | `Minor` | Evaluating classification models with regression metrics (e.g. MSE instead of accuracy/F1). |
+| **`Q001`** | **Unused Imports & Dead Code** | `Minor` | Unused package imports cluttering codebase and increasing attack surface. |
 
 ---
 
-### 3. Core Python Package Directory (`/leakagelens/`)
-The main Python module folder housing the static analysis codebase and runner entry point.
+## 🖥️ Web Application Modules
 
-- **`__init__.py`**: Exposes package version information and acts as the module initialization hook.
-- **`main.py`**: The primary CLI program entrypoint built with `Typer`, coordinating scanning, context generation, lint evaluations, and outputs.
+The frontend is organized into 3 focused, high-performance tabs:
 
-#### 📂 Subfolder: `leakagelens/core/`
-*Sub-package containing base data parsing logic, directory traversal, and graph-construction modules.*
-- **`__init__.py`**: Standard package initialization file.
-- **`ingestion.py`**: Defines functions to discover project files recursively while excluding standard virtual environment folders (`.venv`, `node_modules`, etc.).
-- **`normalization.py`**: Translates `.py` files and `.ipynb` notebook code cells into unified Abstract Syntax Tree (AST) representations, maintaining cell line mapping.
-- **`context_builder.py`**: Builds context data (such as import bindings and variables assignment chains) and structures a variables dependency flow graph.
+1. 📊 **Dashboard Tab**:
+   - **0–100 Pipeline Health Index** with vulnerability count badges.
+   - **ML Overoptimism Estimator** displaying apparent vs. true estimated production accuracy.
+   - **Severity Distribution Donut Chart** & **Static Detection Rule Breakdown Bar Chart**.
+   - **Literature Benchmark Comparison Table** (*LeakageDetector 1.0/2.0*, *mlinspect*, *Sasse et al.*).
 
-#### 📂 Subfolder: `leakagelens/rules/`
-*Sub-package housing individual linting rules checking code against ML anti-patterns and reproducibility failures.*
-- **`__init__.py`**: Aggregates and instantiates all rule classes to expose them as a list.
-- **`base_rule.py`**: Houses the base `BaseRule` class and the `Issue` Pydantic model for reporting violations.
-- **`leakage_rules.py`**: Placeholder classes evaluating preprocessing leaks, dataset overlaps, temporal splits, and target variable leaks.
-- **`reproducibility_rules.py`**: Placeholder classes checking for missing random states, global seeds, or hardcoded system paths.
-- **`evaluation_rules.py`**: Placeholder classes validating test sets segregation, train-test splits, and regression/classification metric combinations.
-- **`quality_rules.py`**: Placeholder classes assessing clean code criteria like unused imports, variables, complexity, and docstrings.
+2. ⚡ **Scanner & Live Code Editor**:
+   - **Direct File Ingestion**: Drop or select any `.py`, `.ipynb`, or `.zip` file — contents immediately load into the Live Editor.
+   - **Groq API Key Config**: Persistent `localStorage` storage for instant sub-second inference with **GPT-OSS 120B**.
+   - **Live Terminal AST Stream Log**: Real-time trace of parsing, dataflow boundary traversal, and model scoring events.
 
-#### 📂 Subfolder: `leakagelens/ai/`
-*Sub-package structuring recommendations, prompt builders, and LLM providers adapters.*
-- **`__init__.py`**: Package initialization file.
-- **`recommendation_engine.py`**: Skeleton class to orchestrate suggestions from OpenAI, Ollama, or fallback local template lists.
-- **`prompt_templates.py`**: Stores instruction layouts and output format specifications for AI models.
-
-#### 📂 Subfolder: `leakagelens/reporting/`
-*Sub-package structuring grading calculations, outputs, and report generation.*
-- **`__init__.py`**: Package initialization file.
-- **`scorer.py`**: Maps severities to numerical deductions and calculates final health grades.
-- **`report_generator.py`**: Structures logs for command terminal UI (Rich), markdown file prints, or JSON outputs.
+3. 🔍 **Auditor & DAG Diagnostic Center**:
+   - **Line-by-Line Code Inspector**: Color-coded line highlights (rose for Critical, amber for Major, sky for Minor) with inline bug callouts.
+   - **Dataflow Graph Visualizer**: 5-node pipeline DAG showing where data leaked across the partition boundary.
+   - **Jupyter Notebook Cell Inspector**: Detailed cell execution dependency viewer.
+   - **AI Quick-Fix Modal**: Side-by-side diff view comparing faulty code (`-`) with clean, remediated code (`+`).
 
 ---
 
-### 4. Unit Tests Directory (`/tests/`)
-Contains test suites to run validations and maintain code stability.
+## 🚀 Quick Start Guide
 
-- **`test_ingestion.py`**: Asserts ingestion scanner imports and file exclusions.
-- **`test_normalization.py`**: Asserts parser imports and code cell stitching components.
-- **`test_context_builder.py`**: Asserts import resolutions and graph construction modules.
-- **`test_rules.py`**: Asserts validation rules logic loading and checks.
-- **`test_reporting.py`**: Asserts report writers and scoring module imports.
+### Prerequisites
+- **Python 3.10+**
+- **Node.js 18+** and **npm**
 
----
+### One-Command Startup
+To start both the FastAPI backend and the Vite React frontend simultaneously:
 
-### 5. Sample Projects Directory (`/sample_projects/`)
-Demo templates containing target bugs to evaluate auditor capabilities.
-
-- **`preprocessing_leakage.py`**: Mock script demonstrating standard preprocessing leakage and missing seeds.
-- **`leaky_notebook.ipynb`**: Mock Jupyter Notebook containing hardcoded absolute paths and unsorted splits.
+```bash
+chmod +x start_dev.sh
+./start_dev.sh
+```
 
 ---
 
-### 6. Package Metadata Directory (`/leakagelens.egg-info/`)
-This directory is auto-generated by Python's `setuptools` packaging library when the package is installed in editable/development mode (`pip install -e .`). It contains distribution metadata that `pip` and python use to track installed packages.
+### Manual Setup
 
-- **`PKG-INFO`**: Document containing package meta details such as name, version, descriptions, and license.
-- **`SOURCES.txt`**: Automatic registry cataloging all project files included in the build.
-- **`dependency_links.txt`**: Links indicating dependency packages locations.
-- **`entry_points.txt`**: Registry connecting commands to executable hooks (maps the `leakagelens` CLI trigger directly to `leakagelens.main:app`).
-- **`requires.txt`**: Package requirements declarations describing the packages to install.
-- **`top_level.txt`**: Record describing the primary namespace module (e.g. `leakagelens`).
+#### 1. Backend Setup
+```bash
+# Create and activate virtual environment (optional)
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Start FastAPI server (Port 8000)
+python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+```
+Backend API will be accessible at: `http://127.0.0.1:8000` (Swagger docs: `http://127.0.0.1:8000/docs`).
+
+#### 2. Frontend Setup
+```bash
+cd frontend
+
+# Install node dependencies
+npm install
+
+# Start Vite dev server (Port 3000)
+npm run dev -- --port 3000
+```
+Frontend web interface will be accessible at: `http://localhost:3000`.
+
+---
+
+## ⚡ Groq AI Engine Configuration
+
+LeakageLens supports sub-second AI patch generation using Groq's high-speed LPU infrastructure:
+
+1. Get a free API key at [console.groq.com](https://console.groq.com/keys).
+2. Enter your key in the **Groq API Key** input box in the **Scanner & Editor** tab.
+3. The key is securely saved in your browser's `localStorage` (`leakagelens_groq_key`).
+4. Default primary model: `openai/gpt-oss-120b` (with automatic fallback to `llama-3.3-70b-versatile` and `llama-3.1-8b-instant`).
+
+*Note: If no Groq API Key is provided, LeakageLens uses local deterministic rule heuristics so scanning works completely offline.*
+
+---
+
+### Running Backend REST API Directly
+```bash
+# Scan a live code snippet
+curl -X POST http://127.0.0.1:8000/api/scan \
+  -H "Content-Type: application/json" \
+  -d '{"code": "from sklearn.preprocessing import StandardScaler\nscaler = StandardScaler()\nX_s = scaler.fit_transform(X)", "filename": "script.py"}'
+```
+
+---
+
+## 📁 Project Structure
+
+```
+LeakageLens/
+├── backend/                        # FastAPI Backend Application
+│   ├── main.py                     # API route handlers (/scan, /scan-file, /history)
+│   ├── analyzer.py                 # Multi-rule execution & model inference coordinator
+│   └── uploads/                    # Temporary storage for uploaded file scans
+│
+├── frontend/                       # React 19 + Tailwind CSS v4 Frontend
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── layout/Navbar.jsx   # Top navigation header & status pills
+│   │   │   ├── dashboard/          # Scorecard, charts & benchmark comparison
+│   │   │   ├── scanner/            # Live editor, dropzone & Groq key config
+│   │   │   ├── auditor/            # Line inspector, DAG visualizer, fix diff modal
+│   │   │   ├── common/             # ErrorBoundary & shared wrappers
+│   │   │   └── ui/                 # Minimalist shadcn/ui primitives (Button, Card, Badge, Modal)
+│   │   ├── services/api.js         # Backend API adapter & Groq direct client
+│   │   ├── utils/sampleData.js     # Literature benchmarks & sample models
+│   │   ├── App.jsx                 # Root application state & tab switcher
+│   │   └── main.jsx                # React DOM entry point
+│   ├── vite.config.js              # Vite bundler configuration
+│   └── package.json
+│
+├── leakagelens/                    # Core Python Static Analysis Engine
+│   ├── core/                       # AST ingestion, normalization & context builder
+│   ├── rules/                      # 10+ deterministic static detection rules
+│   ├── ml/                         # Trained ML leakage model & feature extractor
+│   ├── ai/                         # Groq recommendation engine & prompt templates
+│   └── reporting/                  # Scorer & Markdown/JSON report generators
+│
+├── sample_projects/                # Real-world benchmark & testing pipelines
+│   ├── customer_churn_pipeline.py  # Production clean ML pipeline script
+│   └── customer_churn_analysis.ipynb # Production clean Jupyter notebook
+│
+├── start_dev.sh                    # Unified one-command dev startup script
+├── requirements.txt                # Python backend dependencies
+└── README.md                       # Project documentation
+```
+
+---
+
+## 👥 Academic Context & Authors
+
+**LeakageLens** is developed by:
+- **Amey Chandraprakash Zode**
+- **Yedhukrishna Vijayan**
+- **Aditya Prakash Pulipati**
+- **Pranav Vinayak Tahsildar**
+- **Prof. Priyanka P. Sherkhane**
+
+*Department of Computer Engineering, Pillai College of Engineering, New Panvel, Maharashtra, India.*
+
+---
+
+## 📜 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

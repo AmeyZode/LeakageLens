@@ -5,6 +5,7 @@ export const STORAGE_KEYS = {
   settings: 'leakagelens_settings',
   latestScan: 'leakagelens_latest_scan',
   sidebarCollapsed: 'leakagelens_sidebar_collapsed',
+  groqApiKey: 'leakagelens_groq_api_key',
 };
 
 export const DEFAULT_SCAN_PATH = 'sample_projects';
@@ -20,7 +21,8 @@ export const SCAN_STAGES = [
 ];
 
 export const PROVIDERS = [
+  { value: 'groq', label: 'Groq AI (Llama 3.3 70B)', supported: true },
   { value: 'fallback', label: 'Fallback templates', supported: true },
-  { value: 'openai', label: 'OpenAI', supported: true },
+  { value: 'openai', label: 'OpenAI (GPT-4o)', supported: true },
   { value: 'ollama', label: 'Ollama URL', supported: false },
 ];

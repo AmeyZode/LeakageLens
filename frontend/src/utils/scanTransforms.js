@@ -74,6 +74,7 @@ export function normalizeScanResponse(raw = {}, sourcePath = '') {
     totalIssues: issues.length,
     filesScanned,
     issues,
+    mlInsights: raw.ml_insights || { ml_risk_score: 0.0, confidence_label: 'CLEAN_PIPELINE', feature_importances: [] },
     scannedAt: new Date().toISOString(),
   };
 }
