@@ -3,6 +3,19 @@ import os
 from pathlib import Path
 from typing import Optional
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    for _env_candidate in [
+        Path.cwd() / ".env",
+        Path(__file__).resolve().parents[1] / ".env",
+        Path(__file__).resolve().parents[1] / "backend" / ".env"
+    ]:
+        if _env_candidate.exists():
+            load_dotenv(_env_candidate, override=False)
+except ImportError:
+    pass
+
 from leakagelens.core.ingestion import discover_files
 from leakagelens.core.normalization import normalize_file
 from leakagelens.core.context_builder import build_context
@@ -25,8 +38,8 @@ def main():
 @app.command("audit")
 def audit(
     path: str = typer.Argument(".", help="The target directory or file to audit"),
-    ai: str = typer.Option("fallback", "--ai", help="AI provider (fallback or openai)"),
-    api_key: Optional[str] = typer.Option(None, "--api-key", help="OpenAI API key"),
+    ai: str = typer.Option("groq", "--ai", help="AI provider (groq, openai, or fallback)"),
+    api_key: Optional[str] = typer.Option(None, "--api-key", help="API key for Groq or OpenAI (defaults to GROQ_API_KEY / OPENAI_API_KEY from .env)"),
     format: str = typer.Option("text", "--format", help="Output format: text, json, markdown"),
     output: Optional[str] = typer.Option(None, "--output", help="Optional file path to write report to")
 ):
@@ -42,7 +55,7 @@ def audit(
     # 2. Analyze files
     all_issues = []
     file_cache = {}
-    engine = RecommendationEngine(provider=ai, api_key=api_key or os.getenv("OPENAI_API_KEY"))
+    engine = RecommendationEngine(provider=ai, api_key=api_key)
     
     for file_path in files:
         normalized = normalize_file(file_path)

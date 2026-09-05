@@ -2,7 +2,24 @@ from typing import Dict, Any
 import json
 import logging
 import os
+from pathlib import Path
 import re
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    # Check common locations: current dir, package parent, backend folder
+    for _env_candidate in [
+        Path.cwd() / ".env",
+        Path(__file__).resolve().parents[2] / ".env",
+        Path(__file__).resolve().parents[2] / "backend" / ".env",
+        Path(__file__).resolve().parents[1] / ".env"
+    ]:
+        if _env_candidate.exists():
+            load_dotenv(_env_candidate, override=False)
+except ImportError:
+    pass
+
 from leakagelens.rules.base_rule import Issue
 from leakagelens.ai.prompt_templates import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
 

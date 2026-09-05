@@ -10,7 +10,30 @@ def test_health_endpoint():
     response = client.get("/api/health")
 
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    data = response.json()
+    assert data["status"] == "ok"
+    assert "ai_configured" in data
+    assert "ai_engine" in data
+
+
+def test_scan_code_snippet_direct():
+    snippet = """import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+X_train, X_test = train_test_split(X_scaled)
+"""
+    response = client.post(
+        "/api/scan",
+        json={"code": snippet, "filename": "snippet.py"}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert "score" in body
+    assert "issues" in body
+    assert len(body["issues"]) >= 1
 
 
 def test_auth_google_rejects_missing_credential():

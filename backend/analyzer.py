@@ -13,7 +13,7 @@ from leakagelens.ml.leakage_detector_model import MLLeakageDetector
 logger = logging.getLogger(__name__)
 
 class PipelineAnalyzer:
-    def __init__(self, ai_provider: str = "fallback", api_key: str = None):
+    def __init__(self, ai_provider: str = "groq", api_key: str = None):
         self.engine = RecommendationEngine(provider=ai_provider, api_key=api_key)
         self.ml_detector = MLLeakageDetector()
 

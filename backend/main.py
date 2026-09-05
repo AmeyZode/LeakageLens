@@ -4,8 +4,20 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 import datetime
+import os
 import shutil
 import tempfile
+
+try:
+    from dotenv import load_dotenv
+    workspace_root = Path(__file__).parent.parent.resolve()
+    backend_dir = Path(__file__).parent.resolve()
+    for env_file in [backend_dir / ".env", workspace_root / ".env", Path.cwd() / ".env"]:
+        if env_file.exists():
+            load_dotenv(env_file, override=False)
+    load_dotenv()
+except ImportError:
+    pass
 
 from backend.analyzer import PipelineAnalyzer
 from leakagelens.rules.base_rule import Issue
@@ -50,9 +62,11 @@ class AuthGoogleRequest(BaseModel):
     credential: str  # Represents Google OAuth token string
 
 class ScanRequest(BaseModel):
-    path: str = "."
-    ai_provider: str = "fallback"
+    path: Optional[str] = "."
+    ai_provider: str = "groq"
     api_key: Optional[str] = None
+    code: Optional[str] = None
+    filename: Optional[str] = "script.py"
 
 class HistoryLogRequest(BaseModel):
     project_name: str
@@ -69,13 +83,23 @@ class RecommendationRequest(BaseModel):
     line_number: int
     context_line: str
     description: str
-    ai_provider: str = "fallback"
+    ai_provider: str = "groq"
     api_key: Optional[str] = None
 
 # Root endpoint / Health Check
 @app.get("/api/health")
 def health_check():
-    return {"status": "ok", "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+    groq_key = os.getenv("GROQ_API_KEY")
+    openai_key = os.getenv("OPENAI_API_KEY")
+    ai_configured = bool(groq_key or openai_key)
+    ai_engine = "⚡ Groq (GPT-OSS 120B / Llama 3.3)" if groq_key else ("OpenAI (GPT-4o)" if openai_key else "Deterministic AST Rule Engine")
+    return {
+        "status": "ok", 
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "ai_configured": ai_configured,
+        "ai_engine": ai_engine,
+        "provider": "groq" if groq_key else ("openai" if openai_key else "fallback")
+    }
 
 # 1. Google OAuth Token Verification
 @app.post("/api/auth/google")
@@ -91,14 +115,38 @@ def auth_google(req: AuthGoogleRequest):
         "user": MOCK_USER
     }
 
-# 2. Scanning Project Directory AST structures
+# 2. Scanning Project Directory AST structures or Raw Code Snippet
+UPLOAD_DIR = Path(__file__).parent / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
+
 @app.post("/api/scan")
 def scan_project(req: ScanRequest):
+    # If raw code is sent directly from the frontend editor
+    if req.code is not None:
+        filename = req.filename or "script.py"
+        safe_name = Path(filename).name or "script.py"
+        snippet_dir = UPLOAD_DIR / "snippets"
+        snippet_dir.mkdir(exist_ok=True)
+        snippet_path = snippet_dir / safe_name
+        with open(snippet_path, "w", encoding="utf-8") as f:
+            f.write(req.code)
+
+        try:
+            analyzer = PipelineAnalyzer(ai_provider=req.ai_provider, api_key=req.api_key)
+            results = analyzer.scan_path(str(snippet_path.resolve()))
+            return results
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Snippet scan failed: {str(e)}"
+            )
+
     # Resolve the path relative to the workspace root directory (which is parent of backend folder)
     workspace_root = Path(__file__).parent.parent.resolve()
+    path_val = req.path or "."
     
-    if req.path.startswith("upload://"):
-        clean_name = req.path.replace("upload://", "").strip()
+    if path_val.startswith("upload://"):
+        clean_name = path_val.replace("upload://", "").strip()
         uploaded_target = UPLOAD_DIR / clean_name
         if uploaded_target.exists():
             target_path = uploaded_target.resolve()
@@ -107,22 +155,22 @@ def scan_project(req: ScanRequest):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Uploaded file '{clean_name}' no longer exists in uploads folder."
             )
-    elif req.path == "." or not req.path:
+    elif path_val == "." or not path_val:
         target_path = workspace_root
     else:
         # Check if absolute path or relative to workspace root
-        test_path = Path(req.path)
+        test_path = Path(path_val)
         if test_path.is_absolute():
             target_path = test_path
         else:
-            target_path = workspace_root / req.path
+            target_path = workspace_root / path_val
             
     target_path = target_path.resolve()
     
     if not target_path.exists():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Path '{req.path}' does not exist on the file system."
+            detail=f"Path '{path_val}' does not exist on the file system."
         )
         
     try:
@@ -136,13 +184,12 @@ def scan_project(req: ScanRequest):
         )
 
 # 2b. Upload Local File / ZIP Archive and Scan
-UPLOAD_DIR = Path(__file__).parent / "uploads"
-UPLOAD_DIR.mkdir(exist_ok=True)
-
 @app.post("/api/upload")
+@app.post("/api/scan-file")
+@app.post("/api/scan-zip")
 def upload_file_and_scan(
     file: UploadFile = File(...),
-    ai_provider: str = Form("fallback"),
+    ai_provider: str = Form("groq"),
     api_key: Optional[str] = Form(None)
 ):
     if not file.filename:
@@ -200,7 +247,7 @@ def log_history(req: HistoryLogRequest):
     MOCK_HISTORY.append(record)
     return {"success": True, "record": record}
 
-# 4. Detailed Recommendation Engine Queries
+# 4. Detailed Recommendation Engine Queries (Uses GROQ_API_KEY from backend .env)
 @app.post("/api/recommendation")
 def get_recommendation(req: RecommendationRequest):
     try:
@@ -215,7 +262,7 @@ def get_recommendation(req: RecommendationRequest):
             description=req.description
         )
         
-        # Instantiate engine and return suggestion
+        # Instantiate engine and return suggestion (automatically reads GROQ_API_KEY / OPENAI_API_KEY from .env)
         engine = RecommendationEngine(provider=req.ai_provider, api_key=req.api_key)
         rec = engine.get_recommendation(issue, req.context_line)
         return rec

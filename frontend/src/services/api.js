@@ -511,11 +511,41 @@ export async function logHistoryRecord(record) {
 }
 
 export async function fetchAiRecommendation(issue, codeContext = '', apiKey = null) {
-  const groqKey = apiKey || localStorage.getItem('leakagelens_groq_key');
-  if (groqKey) {
-    return await queryGroqDirect(issue, codeContext, groqKey);
+  // 1. Query Backend AI Recommendation Engine (automatically powered by GROQ_API_KEY from backend .env)
+  try {
+    const res = await fetch(`${API_BASE}/recommendation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        rule_id: issue.rule_id || 'L001',
+        rule_name: issue.rule_name || 'Data Leakage',
+        severity: issue.severity || 'major',
+        file_path: issue.file_path || 'pipeline.py',
+        line_number: issue.line_number || 1,
+        context_line: codeContext || issue.context_line || '',
+        description: issue.description || '',
+        ai_provider: 'groq',
+        api_key: apiKey || undefined
+      }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data && (data.fix || data.explanation)) {
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('Backend AI recommendation query notice, evaluating fallbacks:', err);
   }
 
+  // 2. Direct browser fallback if direct key provided
+  const directKey = apiKey || (typeof localStorage !== 'undefined' ? localStorage.getItem('leakagelens_groq_key') : null);
+  if (directKey) {
+    return await queryGroqDirect(issue, codeContext, directKey);
+  }
+
+  // 3. Deterministic AST Rule Fallback
   return {
     explanation: issue.description || "Data transformation leaks hold-out test statistics into training partition.",
     fix: issue.suggested_fix || "# Split dataset first, then fit on train only",

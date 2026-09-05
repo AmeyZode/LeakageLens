@@ -75,8 +75,7 @@ export const AuditorTab = ({ scanResult }) => {
     setActiveRecommendation(issue.ai_recommendation || null);
     setIsModalOpen(true);
 
-    const groqKey = localStorage.getItem('leakagelens_groq_key');
-    if (groqKey || !issue.ai_recommendation) {
+    if (!issue.ai_recommendation || !issue.ai_recommendation.fix) {
       setAiLoading(true);
       try {
         const rec = await fetchAiRecommendation(issue, issue.context_line);

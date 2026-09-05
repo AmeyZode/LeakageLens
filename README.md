@@ -121,7 +121,7 @@ The frontend is organized into 3 focused, high-performance tabs:
 
 2. ⚡ **Scanner & Live Code Editor**:
    - **Direct File Ingestion**: Drop or select any `.py`, `.ipynb`, or `.zip` file — contents immediately load into the Live Editor.
-   - **Groq API Key Config**: Persistent `localStorage` storage for instant sub-second inference with **GPT-OSS 120B**.
+   - **Automated AI Remediation**: Powered via backend `.env` configuration for instant sub-second inference with **GPT-OSS 120B / Llama 3.3**.
    - **Live Terminal AST Stream Log**: Real-time trace of parsing, dataflow boundary traversal, and model scoring events.
 
 3. 🔍 **Auditor & DAG Diagnostic Center**:
@@ -183,11 +183,14 @@ Frontend web interface will be accessible at: `http://localhost:3000`.
 LeakageLens supports sub-second AI patch generation using Groq's high-speed LPU infrastructure:
 
 1. Get a free API key at [console.groq.com](https://console.groq.com/keys).
-2. Enter your key in the **Groq API Key** input box in the **Scanner & Editor** tab.
-3. The key is securely saved in your browser's `localStorage` (`leakagelens_groq_key`).
+2. Add your key to the `.env` file in the root or `backend/` directory:
+   ```env
+   GROQ_API_KEY=gsk_your_groq_api_key_here
+   ```
+3. The backend automatically loads credentials on startup. Users do not need to enter API keys in the web UI.
 4. Default primary model: `openai/gpt-oss-120b` (with automatic fallback to `llama-3.3-70b-versatile` and `llama-3.1-8b-instant`).
 
-*Note: If no Groq API Key is provided, LeakageLens uses local deterministic rule heuristics so scanning works completely offline.*
+*Note: If no Groq API Key is configured in `.env`, LeakageLens automatically uses local deterministic rule heuristics so scanning works completely offline.*
 
 ---
 

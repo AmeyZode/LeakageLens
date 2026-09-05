@@ -7,17 +7,16 @@ import {
   Code2, 
   Sparkles, 
   Play, 
-  Key, 
   Check, 
-  Eye, 
-  EyeOff, 
   FolderUp,
-  RefreshCw
+  RefreshCw,
+  Cpu,
+  ShieldCheck
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
-import { uploadAndScanFile, scanCodeSnippet } from '../../services/api';
+import { uploadAndScanFile, scanCodeSnippet, checkHealth } from '../../services/api';
 
 export const ScannerTab = ({ onScanComplete }) => {
   const [currentFileName, setCurrentFileName] = useState('pipeline_script.py');
@@ -44,10 +43,12 @@ print("Score:", model.score(X_train, y_train))
 `
   );
   
-  // Groq API Key state with localStorage persistence
-  const [groqKey, setGroqKey] = useState('');
-  const [showKey, setShowKey] = useState(false);
-  const [keySaved, setKeySaved] = useState(false);
+  // Backend AI Engine configuration state
+  const [aiStatus, setAiStatus] = useState({
+    configured: true,
+    engine: '⚡ Groq (GPT-OSS 120B / Llama 3.3)',
+    provider: 'groq'
+  });
 
   const [isScanning, setIsScanning] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -56,16 +57,22 @@ print("Score:", model.score(X_train, y_train))
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('leakagelens_groq_key');
-    if (saved) setGroqKey(saved);
+    async function loadBackendStatus() {
+      try {
+        const health = await checkHealth();
+        if (health && health.status === 'ok') {
+          setAiStatus({
+            configured: health.ai_configured ?? true,
+            engine: health.ai_engine || '⚡ Groq (GPT-OSS 120B / Llama 3.3)',
+            provider: health.provider || 'groq'
+          });
+        }
+      } catch (e) {
+        // Use defaults
+      }
+    }
+    loadBackendStatus();
   }, []);
-
-  const handleSaveGroqKey = (val) => {
-    setGroqKey(val);
-    localStorage.setItem('leakagelens_groq_key', val);
-    setKeySaved(true);
-    setTimeout(() => setKeySaved(false), 2000);
-  };
 
   const addLog = (msg) => {
     setScanLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
@@ -98,7 +105,7 @@ print("Score:", model.score(X_train, y_train))
     setErrorMsg(null);
     setScanLogs([]);
     addLog(`Initiating AST static data leakage scan on: ${fileName}`);
-    addLog(groqKey ? `⚡ AI Recommendation Engine: Groq (Llama 3.3 70B Versatile)` : `Static AST Heuristics Engine Active`);
+    addLog(`⚡ AI Remediation Engine: ${aiStatus.engine} (Configured in Backend .env)`);
 
     try {
       addLog("Step 1/3: Running AST Static Rule Suite (Preprocessing, Target Proxy, Group, Temporal)...");
@@ -110,9 +117,9 @@ print("Score:", model.score(X_train, y_train))
 
       let results;
       if (fileObj) {
-        results = await uploadAndScanFile(fileObj, groqKey);
+        results = await uploadAndScanFile(fileObj);
       } else {
-        results = await scanCodeSnippet(codeToScan, fileName, groqKey);
+        results = await scanCodeSnippet(codeToScan, fileName);
       }
       
       addLog(`Scan concluded! Pipeline Health Score: ${results.score}/100.`);
@@ -240,59 +247,45 @@ print("Score:", model.score(X_train, y_train))
 
         </div>
 
-        {/* Right Column: Groq API Key & Terminal Logs (5 cols) */}
+        {/* Right Column: AI Engine Status & Terminal Logs (5 cols) */}
         <div className="lg:col-span-5 space-y-6">
           
-          {/* Groq Cloud Engine Configuration */}
+          {/* AI Cloud Engine Backend Status */}
           <Card className="bg-slate-900/80 border-slate-800">
             <CardHeader className="pb-3 border-b border-slate-800 flex flex-row items-center justify-between">
               <div className="flex items-center gap-2">
                 <Zap className="w-4 h-4 text-amber-400" />
-                <CardTitle className="text-sm text-slate-200">Groq AI Engine</CardTitle>
+                <CardTitle className="text-sm text-slate-200">AI Remediation Engine</CardTitle>
               </div>
-              <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-300 font-mono">
-                GPT-OSS 120B
+              <Badge variant="outline" className="text-[10px] border-indigo-500/40 text-indigo-300 font-mono">
+                Backend .env
               </Badge>
             </CardHeader>
             <CardContent className="p-4 space-y-3">
               
-              <div className="space-y-1.5">
+              <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/80 space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
-                    <Key className="w-3.5 h-3.5 text-indigo-400" />
-                    Groq API Key (gsk_...)
-                  </label>
-                  {keySaved && <span className="text-[10px] text-emerald-400 font-mono">✓ Saved</span>}
+                  <span className="text-xs text-slate-400 flex items-center gap-1.5 font-medium">
+                    <Cpu className="w-3.5 h-3.5 text-indigo-400" />
+                    Engine Mode:
+                  </span>
+                  <span className="font-mono text-[11px] font-semibold text-emerald-400 flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    Auto-Configured
+                  </span>
                 </div>
-
-                <div className="relative">
-                  <input 
-                    type={showKey ? "text" : "password"}
-                    value={groqKey}
-                    onChange={(e) => handleSaveGroqKey(e.target.value)}
-                    placeholder="Enter your Groq API key (gsk_...)"
-                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 pr-10 text-xs font-mono text-white placeholder-slate-600 focus:border-indigo-500 focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowKey(!showKey)}
-                    className="absolute right-2.5 top-2 text-slate-500 hover:text-slate-300 cursor-pointer"
-                  >
-                    {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                
+                <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-800/60">
+                  <span className="text-slate-400">Active Model:</span>
+                  <span className="font-mono text-[11px] text-slate-200 font-medium">
+                    {aiStatus.engine}
+                  </span>
                 </div>
-
-                <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
-                  Groq provides ultra-fast inference using <strong className="text-slate-200">GPT-OSS 120B</strong> to generate contextual code patches and reliability explanations.
-                </p>
               </div>
 
-              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80 flex items-center justify-between text-xs">
-                <span className="text-slate-400">Engine Status:</span>
-                <span className={`font-mono text-[11px] font-semibold ${groqKey ? 'text-emerald-400' : 'text-amber-400'}`}>
-                  {groqKey ? '⚡ Groq GPT-OSS 120B Active' : 'Offline AST Fallback Active'}
-                </span>
-              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                AI patches and reliability explanations are powered automatically via backend environment credentials (<code className="text-indigo-300 font-mono">.env</code>), eliminating the need for manual API key inputs.
+              </p>
 
             </CardContent>
           </Card>
@@ -331,3 +324,4 @@ print("Score:", model.score(X_train, y_train))
     </div>
   );
 };
+
