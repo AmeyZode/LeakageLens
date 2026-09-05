@@ -114,10 +114,11 @@ LeakageLens evaluates code across 7+ core vulnerability archetypes:
 The frontend is organized into 3 focused, high-performance tabs:
 
 1. 📊 **Dashboard Tab**:
-   - **0–100 Pipeline Health Index** with vulnerability count badges.
-   - **ML Overoptimism Estimator** displaying apparent vs. true estimated production accuracy.
-   - **Severity Distribution Donut Chart** & **Static Detection Rule Breakdown Bar Chart**.
-   - **Literature Benchmark Comparison Table** (*LeakageDetector 1.0/2.0*, *mlinspect*, *Sasse et al.*).
+   - **0–100 Pipeline Health Index** with animated gauge meter and dynamic letter grades (`A+` to `F`).
+   - **ML Overoptimism & Generalization Gap Intelligence** displaying apparent vs. true estimated production accuracy with $\Delta$ degradation metrics.
+   - **Visual Analytics Suite**: Severity distribution donut chart, AST detection rule frequency bar chart, and degradation trajectory curve.
+   - **Prioritized Vulnerability Findings Feed**: Live actionable bug feed with severity filters and direct 1-click remediation links.
+   - **Pipeline Security & Governance Checklist**: Real-time compliance tracker across partitioning, target decoupling, temporal safety, and reproducibility.
 
 2. ⚡ **Scanner & Live Code Editor**:
    - **Direct File Ingestion**: Drop or select any `.py`, `.ipynb`, or `.zip` file — contents immediately load into the Live Editor.

@@ -86,7 +86,8 @@ class RecommendationEngine:
     """Interface to get descriptions, explanations, risks, and fixes from Groq or OpenAI."""
     def __init__(self, provider: str = "groq", api_key: str = None, model: str = "openai/gpt-oss-120b"):
         self.provider = provider or "groq"
-        self.api_key = api_key or os.getenv("GROQ_API_KEY") or os.getenv("OPENAI_API_KEY")
+        raw_key = api_key or os.getenv("GROQ_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
+        self.api_key = raw_key.strip() if isinstance(raw_key, str) and raw_key.strip() else None
         self.model = model or "openai/gpt-oss-120b"
 
     def get_recommendation(self, issue: Issue, code_context: str) -> Dict[str, str]:
