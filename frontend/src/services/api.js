@@ -40,7 +40,8 @@ export function analyzeCodeForLeakages(sourceCode, filename = 'script.py') {
   lines.forEach((line, idx) => {
     const lineNum = idx + 1;
     const trimmed = line.trim();
-    if (trimmed.startsWith('#') || trimmed.length === 0) return;
+    // Skip comments and import/from statements
+    if (trimmed.startsWith('#') || trimmed.startsWith('import ') || trimmed.startsWith('from ') || trimmed.length === 0) return;
 
     // Helper: inspect multi-line statement window (up to 8 lines forward)
     const statementWindow = lines.slice(idx, Math.min(lines.length, idx + 8)).join(' ');
@@ -71,7 +72,7 @@ export function analyzeCodeForLeakages(sourceCode, filename = 'script.py') {
 
     // 2. Global Imputation Leakage (L002) - Execution of fit_transform on full dataset before split
     if (
-      (trimmed.includes('SimpleImputer') || trimmed.includes('KNNImputer') || trimmed.includes('IterativeImputer') || (trimmed.includes('imputer') && trimmed.includes('fit'))) &&
+      (trimmed.includes('SimpleImputer(') || trimmed.includes('KNNImputer(') || trimmed.includes('IterativeImputer(') || (trimmed.includes('imputer') && trimmed.includes('fit'))) &&
       (trimmed.includes('.fit_transform(') || trimmed.includes('.fit(')) &&
       !trimmed.includes('X_train') && !trimmed.includes('train_') &&
       (splitLineIndex === -1 || idx < splitLineIndex)
@@ -96,9 +97,9 @@ export function analyzeCodeForLeakages(sourceCode, filename = 'script.py') {
 
     // 3. Preprocessing Scaling Leakage (L001) - Execution of fit_transform on full dataset before split
     if (
-      (trimmed.includes('StandardScaler') || trimmed.includes('MinMaxScaler') || trimmed.includes('RobustScaler') || trimmed.includes('Normalizer') || trimmed.includes('OneHotEncoder') || (trimmed.includes('scaler') && trimmed.includes('fit'))) &&
+      (trimmed.includes('StandardScaler(') || trimmed.includes('MinMaxScaler(') || trimmed.includes('RobustScaler(') || trimmed.includes('Normalizer(') || trimmed.includes('OneHotEncoder(') || (trimmed.includes('scaler') && trimmed.includes('fit'))) &&
       (trimmed.includes('.fit_transform(') || trimmed.includes('.fit(')) &&
-      !trimmed.includes('X_train') && !trimmed.includes('train_') &&
+      !trimmed.includes('X_train') && !trimmed.includes('train_') && !trimmed.includes('features_train') &&
       (splitLineIndex === -1 || idx < splitLineIndex)
     ) {
       detectedIssues.push({
@@ -121,7 +122,7 @@ export function analyzeCodeForLeakages(sourceCode, filename = 'script.py') {
 
     // 4. Temporal Lookahead Bias (L005)
     if (
-      (trimmed.includes('train_test_split') && statementWindow.includes('shuffle=True') && (code.includes('time') || code.includes('date') || code.includes('timestamp'))) ||
+      (trimmed.includes('train_test_split(') && statementWindow.includes('shuffle=True') && (code.includes('timestamp') || code.includes('datetime'))) ||
       (trimmed.includes('shift(-') && !trimmed.includes('shift(1'))
     ) {
       detectedIssues.push({
@@ -145,10 +146,11 @@ export function analyzeCodeForLeakages(sourceCode, filename = 'script.py') {
     // 5. Group / Subject Leakage (L006)
     if (
       (statementWindow.includes('customer_id') || statementWindow.includes('patient_id') || statementWindow.includes('user_id')) &&
-      trimmed.includes('train_test_split') &&
+      trimmed.includes('train_test_split(') &&
       !code.includes('GroupShuffleSplit') &&
       !code.includes('GroupKFold') &&
-      !statementWindow.includes('drop(')
+      !statementWindow.includes('drop(') &&
+      !statementWindow.includes('feature_columns')
     ) {
       detectedIssues.push({
         rule_id: "L006",
@@ -168,15 +170,15 @@ export function analyzeCodeForLeakages(sourceCode, filename = 'script.py') {
       });
     }
 
-    // 6. Missing Stochastic Seed / Determinism (R001) - multi-line statement inspection
+    // 6. Missing Stochastic Seed / Determinism (R001) - only inspect function calls, not import statements
     if (
-      (trimmed.includes('train_test_split') || 
-       trimmed.includes('RandomForestClassifier') || 
-       trimmed.includes('RandomForestRegressor') ||
-       trimmed.includes('GradientBoostingClassifier') || 
-       trimmed.includes('DecisionTreeClassifier') ||
-       trimmed.includes('KFold') ||
-       trimmed.includes('StratifiedKFold'))
+      (trimmed.includes('train_test_split(') || 
+       trimmed.includes('RandomForestClassifier(') || 
+       trimmed.includes('RandomForestRegressor(') ||
+       trimmed.includes('GradientBoostingClassifier(') || 
+       trimmed.includes('DecisionTreeClassifier(') ||
+       trimmed.includes('KFold(') ||
+       trimmed.includes('StratifiedKFold('))
     ) {
       if (!statementWindow.includes('random_state') && !statementWindow.includes('random_seed') && !statementWindow.includes('seed=')) {
         let dynamicFix = "";
