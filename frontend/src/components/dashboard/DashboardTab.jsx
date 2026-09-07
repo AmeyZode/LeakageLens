@@ -84,14 +84,41 @@ export const DashboardTab = ({ scanResult, onNavigateScanner, onNavigateAuditor 
     count,
   }));
 
-  // Generalization Gap / Overoptimism trajectory data
-  const trendData = [
-    { stage: 'Train Split', apparent: 94.2, truePerf: 64.0 },
-    { stage: 'CV Fold 1', apparent: 91.8, truePerf: 63.5 },
-    { stage: 'CV Fold 2', apparent: 89.4, truePerf: 62.8 },
-    { stage: 'Hold-out Test', apparent: 87.2, truePerf: 62.4 },
-    { stage: 'Production', apparent: 87.2, truePerf: 62.4 },
+  // Derive dynamic Generalization Gap / Overoptimism trajectory data
+  const apparentBase = Number(mlInsights.apparent_training_accuracy) || 88.0;
+  const prodBase = Number(mlInsights.estimated_production_accuracy) || 85.0;
+  const delta = Number(mlInsights.overoptimism_delta) || Math.max(0, apparentBase - prodBase);
+
+  const trendData = scanResult?.trend_data || scanResult?.ml_insights?.trend_data || [
+    { 
+      stage: 'Train Split', 
+      apparent: Math.min(98.5, Math.round((apparentBase + Math.min(1.8, delta * 0.10)) * 10) / 10), 
+      truePerf: Math.min(94.0, Math.round((prodBase + (delta * 0.40)) * 10) / 10) 
+    },
+    { 
+      stage: 'CV Fold 1', 
+      apparent: Math.min(98.0, Math.round((apparentBase + Math.min(1.0, delta * 0.06)) * 10) / 10), 
+      truePerf: Math.round((prodBase + (delta * 0.28)) * 10) / 10 
+    },
+    { 
+      stage: 'CV Fold 2', 
+      apparent: Math.min(97.5, Math.round((apparentBase + Math.min(0.4, delta * 0.02)) * 10) / 10), 
+      truePerf: Math.round((prodBase + (delta * 0.16)) * 10) / 10 
+    },
+    { 
+      stage: 'Hold-out Test', 
+      apparent: Math.round(apparentBase * 10) / 10, 
+      truePerf: Math.round((prodBase + (delta * 0.06)) * 10) / 10 
+    },
+    { 
+      stage: 'Production', 
+      apparent: Math.round(apparentBase * 10) / 10, 
+      truePerf: Math.round(prodBase * 10) / 10 
+    },
   ];
+
+  const minChartVal = Math.min(...trendData.map(d => Math.min(d.apparent, d.truePerf)));
+  const yDomainMin = Math.max(20, Math.floor((minChartVal - 8) / 10) * 10);
 
   // Filtered issues for the prioritized findings feed
   const filteredIssues = issues.filter(i => {
@@ -421,7 +448,7 @@ export const DashboardTab = ({ scanResult, onNavigateScanner, onNavigateAuditor 
                     </linearGradient>
                   </defs>
                   <XAxis dataKey="stage" stroke="#64748b" fontSize={10} />
-                  <YAxis stroke="#64748b" fontSize={10} domain={[40, 100]} />
+                  <YAxis stroke="#64748b" fontSize={10} domain={[yDomainMin, 100]} />
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#fff', fontSize: '11px' }}
                   />
