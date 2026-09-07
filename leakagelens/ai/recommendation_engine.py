@@ -65,24 +65,82 @@ FALLBACK_RECOMMENDATIONS = {
     }
 }
 
+import os
+
 class RecommendationEngine:
     """Interface to get descriptions, explanations, risks, and fixes from LLMs or Local templates."""
-    def __init__(self, provider: str = "fallback", api_key: str = None, ollama_url: str = None):
-        self.provider = provider
+    def __init__(
+        self,
+        provider: str = "fallback",
+        api_key: str = None,
+        ollama_url: str = None,
+        model: str = None,
+        base_url: str = None,
+    ):
+        self.provider = provider.lower() if provider else "fallback"
         self.api_key = api_key
         self.ollama_url = ollama_url
+        self.model = model
+        self.base_url = base_url
 
     def get_recommendation(self, issue: Issue, code_context: str) -> Dict[str, str]:
-        """Query LLM (OpenAI/Ollama) or return template-based fallback recommendation."""
+        """Query LLM (Grok/xAI, OpenAI, Ollama) or return template-based fallback recommendation."""
         fallback = FALLBACK_RECOMMENDATIONS.get(
             issue.rule_id, 
             {"explanation": "No static recommendation available.", "fix": "# Verify code structure manually"}
         )
-        
-        if self.provider == "openai" and self.api_key:
+
+        # Grok (xAI) Provider
+        if self.provider in ["grok", "xai"]:
+            key = self.api_key or os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY")
+            if not key or key == "PASTE_YOUR_GROK_API_KEY_HERE":
+                logger.warning("Grok API key not provided or configured. Using fallback templates.")
+                return fallback
+
             try:
                 from openai import OpenAI
-                client = OpenAI(api_key=self.api_key)
+                client = OpenAI(
+                    api_key=key,
+                    base_url=self.base_url or os.getenv("GROK_BASE_URL", "https://api.x.ai/v1")
+                )
+
+                prompt = USER_PROMPT_TEMPLATE.format(
+                    file_path=issue.file_path,
+                    line_number=issue.line_number,
+                    rule_name=issue.rule_name,
+                    severity=issue.severity,
+                    description=issue.description,
+                    code_context=code_context
+                )
+
+                response = client.chat.completions.create(
+                    model=self.model or os.getenv("GROK_MODEL", "grok-2-latest"),
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format={"type": "json_object"}
+                )
+
+                data = json.loads(response.choices[0].message.content)
+                return {
+                    "explanation": data.get("explanation", fallback["explanation"]),
+                    "fix": data.get("fix", fallback["fix"])
+                }
+            except Exception as e:
+                logger.error(f"Grok recommendation failed: {e}. Falling back to templates.")
+                return fallback
+        
+        # OpenAI Provider
+        if self.provider == "openai":
+            key = self.api_key or os.getenv("OPENAI_API_KEY")
+            if not key:
+                logger.warning("OpenAI API key not provided. Using fallback templates.")
+                return fallback
+
+            try:
+                from openai import OpenAI
+                client = OpenAI(api_key=key)
                 
                 prompt = USER_PROMPT_TEMPLATE.format(
                     file_path=issue.file_path,
@@ -94,7 +152,7 @@ class RecommendationEngine:
                 )
                 
                 response = client.chat.completions.create(
-                    model="gpt-4o",
+                    model=self.model or "gpt-4o",
                     messages=[
                         {"role": "system", "content": SYSTEM_PROMPT},
                         {"role": "user", "content": prompt}

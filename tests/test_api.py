@@ -87,3 +87,37 @@ def test_recommendation_endpoint_returns_fallback_guidance():
 
     assert response.status_code == 200
     assert "fix" in response.json()
+
+
+def test_recommendation_endpoint_supports_grok_provider():
+    response = client.post(
+        "/api/recommendation",
+        json={
+            "rule_id": "L001",
+            "rule_name": "Preprocessing Leakage",
+            "severity": "critical",
+            "file_path": "sample_projects/preprocessing_leakage.py",
+            "line_number": 8,
+            "context_line": "scaler.fit_transform(X)",
+            "description": "Preprocessing fit before split",
+            "ai_provider": "grok",
+            "api_key": None,
+        },
+    )
+
+    assert response.status_code == 200
+    assert "fix" in response.json()
+    assert "explanation" in response.json()
+
+
+def test_scan_sample_project_with_grok_provider():
+    response = client.post(
+        "/api/scan",
+        json={"path": "sample_projects", "ai_provider": "grok", "api_key": None},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["score"] <= 100
+    assert len(body["issues"]) >= 1
+

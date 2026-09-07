@@ -20,7 +20,8 @@ export const SCAN_STAGES = [
 ];
 
 export const PROVIDERS = [
-  { value: 'fallback', label: 'Fallback templates', supported: true },
-  { value: 'openai', label: 'OpenAI', supported: true },
-  { value: 'ollama', label: 'Ollama URL', supported: false },
+  { value: 'grok', label: 'Grok (xAI) — Inbuilt Backend AI', supported: true, inbuilt: true },
+  { value: 'fallback', label: 'Fallback templates', supported: true, inbuilt: true },
+  { value: 'openai', label: 'OpenAI (Custom Key)', supported: true, inbuilt: false },
+  { value: 'ollama', label: 'Ollama URL', supported: false, inbuilt: false },
 ];

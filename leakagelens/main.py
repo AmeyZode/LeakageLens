@@ -20,8 +20,8 @@ app = typer.Typer(help="LeakageLens CLI - AI-Powered ML Pipeline Auditor")
 @app.command()
 def audit(
     path: str = typer.Argument(".", help="The target directory or file to audit"),
-    ai: str = typer.Option("fallback", "--ai", help="AI provider (fallback or openai)"),
-    api_key: Optional[str] = typer.Option(None, "--api-key", help="OpenAI API key"),
+    ai: str = typer.Option("fallback", "--ai", help="AI provider (grok, openai, or fallback)"),
+    api_key: Optional[str] = typer.Option(None, "--api-key", help="API key for AI provider (optional if configured in backend/env)"),
     format: str = typer.Option("text", "--format", help="Output format: text, json, markdown"),
     output: Optional[str] = typer.Option(None, "--output", help="Optional file path to write report to")
 ):
@@ -37,7 +37,15 @@ def audit(
     # 2. Analyze files
     all_issues = []
     file_cache = {}
-    engine = RecommendationEngine(provider=ai, api_key=api_key or os.getenv("OPENAI_API_KEY"))
+    
+    resolved_key = api_key
+    if not resolved_key:
+        if ai.lower() in ["grok", "xai"]:
+            resolved_key = os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY")
+        elif ai.lower() == "openai":
+            resolved_key = os.getenv("OPENAI_API_KEY")
+
+    engine = RecommendationEngine(provider=ai, api_key=resolved_key)
     
     for file_path in files:
         normalized = normalize_file(file_path)

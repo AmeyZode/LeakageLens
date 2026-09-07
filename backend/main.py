@@ -1,11 +1,12 @@
+import datetime
+from typing import Optional, List, Dict, Any
+from pathlib import Path
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
-from pathlib import Path
-import datetime
 
 from backend.analyzer import PipelineAnalyzer
+from backend.config import GROK_API_KEY, GROK_MODEL, GROK_BASE_URL
 from leakagelens.rules.base_rule import Issue
 from leakagelens.ai.recommendation_engine import RecommendationEngine
 
@@ -49,7 +50,7 @@ class AuthGoogleRequest(BaseModel):
 
 class ScanRequest(BaseModel):
     path: str = "."
-    ai_provider: str = "fallback"
+    ai_provider: str = "grok"
     api_key: Optional[str] = None
 
 class HistoryLogRequest(BaseModel):
@@ -67,13 +68,13 @@ class RecommendationRequest(BaseModel):
     line_number: int
     context_line: str
     description: str
-    ai_provider: str = "fallback"
+    ai_provider: str = "grok"
     api_key: Optional[str] = None
 
 # Root endpoint / Health Check
 @app.get("/api/health")
 def health_check():
-    return {"status": "ok", "timestamp": datetime.datetime.utcnow().isoformat()}
+    return {"status": "ok", "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()}
 
 # 1. Google OAuth Token Verification
 @app.post("/api/auth/google")
@@ -114,7 +115,13 @@ def scan_project(req: ScanRequest):
         )
         
     try:
-        analyzer = PipelineAnalyzer(ai_provider=req.ai_provider, api_key=req.api_key)
+        # Resolve backend secret Grok API key if client didn't supply one
+        api_key = req.api_key
+        provider = (req.ai_provider or "grok").lower()
+        if provider in ["grok", "xai"] and not api_key:
+            api_key = GROK_API_KEY
+
+        analyzer = PipelineAnalyzer(ai_provider=provider, api_key=api_key)
         results = analyzer.scan_path(str(target_path))
         return results
     except Exception as e:
@@ -133,7 +140,7 @@ def log_history(req: HistoryLogRequest):
     new_id = len(MOCK_HISTORY) + 1
     record = {
         "id": new_id,
-        "date": datetime.datetime.utcnow().isoformat(),
+        "date": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "project_name": req.project_name,
         "score": req.score,
         "critical_count": req.critical_count,
@@ -158,8 +165,14 @@ def get_recommendation(req: RecommendationRequest):
             description=req.description
         )
         
+        # Resolve backend secret Grok API key if client didn't supply one
+        api_key = req.api_key
+        provider = (req.ai_provider or "grok").lower()
+        if provider in ["grok", "xai"] and not api_key:
+            api_key = GROK_API_KEY
+
         # Instantiate engine and return suggestion
-        engine = RecommendationEngine(provider=req.ai_provider, api_key=req.api_key)
+        engine = RecommendationEngine(provider=provider, api_key=api_key)
         rec = engine.get_recommendation(issue, req.context_line)
         return rec
     except Exception as e:

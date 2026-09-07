@@ -4,7 +4,7 @@ import { useLocalStorage } from '../hooks/useLocalStorage.js';
 import { useTheme } from './ThemeContext.jsx';
 
 const DEFAULT_SETTINGS = {
-  aiProvider: 'fallback',
+  aiProvider: 'grok',
   openAiKey: '',
   ollamaUrl: 'http://localhost:11434',
   defaultScanPath: DEFAULT_SCAN_PATH,
@@ -26,7 +26,9 @@ export function SettingsProvider({ children }) {
   );
 
   const resolvedSettings = { ...DEFAULT_SETTINGS, ...settings };
-  const runtimeAiProvider = resolvedSettings.aiProvider === 'openai' ? 'openai' : 'fallback';
+  const runtimeAiProvider = ['grok', 'openai', 'fallback'].includes(resolvedSettings.aiProvider)
+    ? resolvedSettings.aiProvider
+    : 'grok';
   const provider = PROVIDERS.find((item) => item.value === resolvedSettings.aiProvider) || PROVIDERS[0];
 
   const value = useMemo(

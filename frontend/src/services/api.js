@@ -45,7 +45,7 @@ export function loginWithGoogleCredential(credential) {
   });
 }
 
-export function scanProject({ path, aiProvider = 'fallback', apiKey = null, token }) {
+export function scanProject({ path, aiProvider = 'grok', apiKey = null, token }) {
   return request('/api/scan', {
     method: 'POST',
     token,
@@ -82,7 +82,7 @@ export function createHistoryEntry({
   });
 }
 
-export function getRecommendation({ issue, aiProvider = 'fallback', apiKey = null, token }) {
+export function getRecommendation({ issue, aiProvider = 'grok', apiKey = null, token }) {
   return request('/api/recommendation', {
     method: 'POST',
     token,
